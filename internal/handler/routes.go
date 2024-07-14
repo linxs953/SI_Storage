@@ -3,7 +3,13 @@ package handler
 
 import (
 	"net/http"
-	apijob "lexa-engine/internal/handler/job"
+
+	api "lexa-engine/internal/handler/api"
+	cache "lexa-engine/internal/handler/cache"
+	sync "lexa-engine/internal/handler/sync"
+	syncTask "lexa-engine/internal/handler/syncTask"
+	task "lexa-engine/internal/handler/task"
+	tool "lexa-engine/internal/handler/tool"
 	"lexa-engine/internal/svc"
 
 	"github.com/zeromicro/go-zero/rest"
@@ -24,10 +30,105 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 		[]rest.Route{
 			{
 				Method:  http.MethodPost,
-				Path:    "/getOne",
-				Handler: apijob.StartHandler(serverCtx),
+				Path:    "/apifox",
+				Handler: sync.SyncapiHandler(serverCtx),
 			},
 		},
-		rest.WithPrefix("/api/v1/job"),
+		rest.WithPrefix("/sync"),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/get",
+				Handler: syncTask.GetSyncRecordHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/create",
+				Handler: syncTask.NewSyncRecordHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/update",
+				Handler: syncTask.UpdateSyncRecordHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/sync/record"),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/orderVerify",
+				Handler: tool.OrderVerifyHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/tool"),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodPost,
+				Path:    "/create",
+				Handler: task.CreateTaskHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/update",
+				Handler: task.UpdateTaskHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodDelete,
+				Path:    "/delete",
+				Handler: task.DeleteTaskHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/getOne",
+				Handler: task.GetTaskHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/getList",
+				Handler: task.GetTaskListHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/run/:taskId",
+				Handler: task.RunTaskHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/task"),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/:apiId/getApiDetail",
+				Handler: api.GetApiDetailHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/getApiList",
+				Handler: api.GetApiListHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/api"),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodPost,
+				Path:    "/testdata/init",
+				Handler: cache.TdInitHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/cache"),
 	)
 }

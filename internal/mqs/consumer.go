@@ -3,13 +3,14 @@ package mqs
 import (
 	"context"
 	"flag"
-	"lexa-engine/internal/config"
-	"lexa-engine/internal/svc"
 
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/service"
 	"github.com/zeromicro/go-zero/rest"
+
+	"lexa-engine/internal/config"
+	"lexa-engine/internal/svc"
 )
 
 func StartConsumerGroups() {
@@ -28,6 +29,6 @@ func StartConsumerGroups() {
 	for _, mq := range Consumers(c, ctx, svcCtx) {
 		serviceGroup.Add(mq)
 	}
-	logx.Info("Start Api Sync Consumer Group Successfully")
+	logx.Info("Start  Consumer Group Successfully")
 	serviceGroup.Start()
 }

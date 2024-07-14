@@ -16,12 +16,23 @@ type MongoConfig struct {
 type DatabaseConfig struct {
 	Mongo MongoConfig `json:"mongo"`
 }
+
+type RedisConf struct {
+	Host string
+	Type string `json:",default=node,options=node|cluster"`
+	Pass string `json:",optional"`
+	Tls  bool   `json:",optional"`
+}
+
 type Config struct {
 	rest.RestConf
-	KqConsumerConf kq.KqConf
-	KqPusherConf   struct {
-		Brokers []string
-		Topic   string
+	RedisConf        RedisConf `json:"RedisConf"`
+	KqConsumerConf   kq.KqConf
+	TaskConsumerConf kq.KqConf
+	KqPusherConf     struct {
+		Brokers      []string
+		Topic        string
+		TaskRunTopic string
 	}
 	Database DatabaseConfig `json:"Database"`
 }

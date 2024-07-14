@@ -1,23 +1,24 @@
-package job
+package task
 
 import (
-	apijob "lexa-engine/internal/logic/job"
-	"lexa-engine/internal/svc"
-	"lexa-engine/internal/types"
 	"net/http"
 
 	"github.com/zeromicro/go-zero/rest/httpx"
+	"lexa-engine/internal/logic/task"
+	"lexa-engine/internal/svc"
+	"lexa-engine/internal/types"
 )
 
-func StartHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
+func RunTaskHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req types.StartDto
+		var req types.RunTaskDto
 		if err := httpx.Parse(r, &req); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
-		l := apijob.NewStartLogic(r.Context(), svcCtx)
-		resp, err := l.Start(&req)
+
+		l := task.NewRunTaskLogic(r.Context(), svcCtx)
+		resp, err := l.RunTask(&req)
 		if err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 		} else {

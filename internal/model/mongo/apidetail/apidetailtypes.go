@@ -7,7 +7,7 @@ import (
 )
 
 type Apidetail struct {
-	ID            primitive.ObjectID `bson:"_id,omitempty" bson:"id,omitempty"`
+	ID            primitive.ObjectID `bson:"_id,omitempty"`
 	Source        string             `bson:"source"`
 	ApiId         int                `bson:"apiId"`
 	FolderName    string             `bson:"folderName"`
@@ -20,8 +20,8 @@ type Apidetail struct {
 	ApiPayload    *ApiPayload        `bson:"payload"`
 	ApiParameters []*ApiParameter    `bson:"parameters"`
 	ApiResponse   *ApiResponseSpec   `bson:"response"`
-	UpdateAt      time.Time          `bson:"updateAt,omitempty" bson:"updateAt,omitempty"`
-	CreateAt      time.Time          `bson:"createAt,omitempty" bson:"createAt,omitempty"`
+	UpdateAt      time.Time          `bson:"updateAt,omitempty"`
+	CreateAt      time.Time          `bson:"createAt,omitempty"`
 }
 
 /*
@@ -62,6 +62,7 @@ type FieldMapValue struct {
 type ApiParameter struct {
 	QueryName  string `bson:"queryName"`
 	QueryValue string `bson:"queryValue"`
+	ValueType  string `bson:"valueType"`
 }
 
 type ApiResponseSpec struct {

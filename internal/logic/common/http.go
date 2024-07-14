@@ -21,6 +21,7 @@ type FormPayload struct {
 type RequestQuery struct {
 	QueryName  string `json:"queryName"`
 	QueryValue string `json:"queryValue"`
+	Type       string `json:"type"`
 }
 type RequestFormBodyParameter struct {
 	FormName  string `json:"formName"`

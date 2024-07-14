@@ -9,6 +9,7 @@ import (
 	"github.com/zeromicro/go-zero/core/stores/mon"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var _ ApidetailModel = (*customApidetailModel)(nil)
@@ -19,6 +20,8 @@ type (
 	ApidetailModel interface {
 		apidetailModel
 		FindByApiId(ctx context.Context, apiId int) (*Apidetail, error)
+		FindApiList(ctx context.Context, page int64, pageSize int64) ([]*Apidetail, error)
+		GetListCount(ctx context.Context) (int64, error)
 	}
 
 	customApidetailModel struct {
@@ -35,17 +38,43 @@ func (cm *customApidetailModel) FindByApiId(ctx context.Context, apiId int) (*Ap
 	return &detail, err
 }
 
+func (cm *customApidetailModel) FindApiList(ctx context.Context, page int64, pageSize int64) ([]*Apidetail, error) {
+	var err error
+	skip := (page - 1) * pageSize
+	logx.Error(page, pageSize)
+	// 分页查询mongodb 表数据
+	var apidetails []*Apidetail
+	err = cm.conn.Find(ctx, &apidetails, bson.D{}, options.Find().SetSkip(skip).SetLimit(pageSize))
+	if err != nil {
+		return nil, err
+	}
+	return apidetails, err
+}
+
+func (cm *customApidetailModel) GetListCount(ctx context.Context) (int64, error) {
+	var (
+		err   error
+		count int64
+	)
+	count, err = cm.conn.CountDocuments(ctx, bson.D{})
+	if err != nil {
+		return 0, err
+	}
+	return count, err
+}
+
 func (cm *customApidetailModel) Insert(ctx context.Context, data *Apidetail) error {
 	if data.ID.IsZero() {
 		data.ID = primitive.NewObjectID()
 		data.CreateAt = time.Now()
 		data.UpdateAt = time.Now()
 	}
-	_, err := cm.FindByApiId(ctx, data.ApiId)
+	findRecord, err := cm.FindByApiId(ctx, data.ApiId)
 	switch err {
 	case nil:
 		logx.Error(fmt.Sprintf("存在 apid = [%v] 的记录", data.ApiId))
 		logx.Info(fmt.Sprintf("开始更新apid = [%v] 记录.....", data.ApiId))
+		data.ID = findRecord.ID
 		_, err := cm.Update(ctx, data)
 		if err != nil {
 			logx.Error(fmt.Sprintf("更新apid = [%v] 记录失败", data.ApiId))

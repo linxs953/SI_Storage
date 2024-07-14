@@ -4,6 +4,8 @@ import (
 	"errors"
 	"lexa-engine/internal/logic"
 	"lexa-engine/internal/svc"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // 同步器 job spec
@@ -13,44 +15,12 @@ type SyncSpec struct {
 	ApollConfigUrl string     `json:"apollConfigUrl"`
 }
 
+// apifox同步器 spec
 type ApiFoxSpec struct {
 	// sharedoc/jsonfile
 	Type         string `json:"type"`
 	ShareUrl     string `json:"shareUrl"`
 	ShareDocAuth string `json:"shareDocAuth"`
-}
-
-func (as *SyncSpec) Sync(svcCtx *svc.ServiceContext) error {
-	var err error
-
-	if as == nil {
-		err = errors.New("同步器对象为空")
-		return err
-	}
-	if as.SyncType == "" || as.ApollConfigUrl == "" {
-		err = errors.New("同步器类型或同步配置地址不能为空")
-		return err
-	}
-	switch as.SyncType {
-	case logic.APIFOXDOC:
-		{
-			apifoxSync := BuildApiFox(as.ApiFoxSpec)
-			if apifoxSync == nil {
-				err = errors.New("构建 ApiSynchronizer 失败")
-				return err
-			}
-			if err = apifoxSync.Sync(svcCtx); err != nil {
-				return err
-			}
-			break
-		}
-	default:
-		{
-			err = errors.New("不支持的同步器类型")
-			return err
-		}
-	}
-	return err
 }
 
 // 同步器接口
@@ -97,4 +67,37 @@ type ApiFoxTreeData struct {
 
 type ApiFoxTreeFolderInfo struct {
 	Id int `json:"id"`
+}
+
+func (as *SyncSpec) Sync(svcCtx *svc.ServiceContext, recordId primitive.ObjectID) error {
+	var err error
+
+	if as == nil {
+		err = errors.New("同步器对象为空")
+		return err
+	}
+	if as.SyncType == "" || as.ApollConfigUrl == "" {
+		err = errors.New("同步器类型或同步配置地址不能为空")
+		return err
+	}
+	switch as.SyncType {
+	case logic.APIFOXDOC:
+		{
+			apifoxSync := BuildApiFox(as.ApiFoxSpec)
+			if apifoxSync == nil {
+				err = errors.New("构建 ApiSynchronizer 失败")
+				return err
+			}
+			if err = apifoxSync.Sync(svcCtx, recordId); err != nil {
+				return err
+			}
+			break
+		}
+	default:
+		{
+			err = errors.New("不支持的同步器类型")
+			return err
+		}
+	}
+	return err
 }

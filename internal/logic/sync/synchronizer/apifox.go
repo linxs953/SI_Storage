@@ -4,19 +4,30 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	logic "lexa-engine/internal/logic"
-	"lexa-engine/internal/logic/common"
-	"lexa-engine/internal/model/mongo/apidetail"
-	"lexa-engine/internal/svc"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/zeromicro/go-zero/core/logx"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	logic "lexa-engine/internal/logic"
+	"lexa-engine/internal/logic/common"
+	"lexa-engine/internal/logic/sync/synchronizer/utils"
+	"lexa-engine/internal/model/mongo/apidetail"
+	"lexa-engine/internal/svc"
 )
 
 var hc common.HttpClient
+
+type DataHook struct {
+	Event    string             `json:"event"`
+	Data     interface{}        `json:"data"`
+	IsEof    bool               `json:"iseof"`
+	UpdateId primitive.ObjectID `json:"updateId"`
+}
 
 type ApiFoxSynchronizer struct {
 	ApiFoxShareUrl        string                `json:"api_fox_share_url"`
@@ -25,6 +36,7 @@ type ApiFoxSynchronizer struct {
 	ApiFoxDetailUrl       string                `json:"api_fox_detail_url"`
 	ApiFoxTreeUrl         string                `json:"api_fox_tree_url"`
 	ApiInfoList           []apidetail.Apidetail `json:"api_info_list"`
+	Hooks                 []DataHook            `json:"hooks"`
 }
 
 func BuildApiFox(config ApiFoxSpec) *ApiFoxSynchronizer {
@@ -48,14 +60,48 @@ func BuildApiFox(config ApiFoxSpec) *ApiFoxSynchronizer {
 	}
 }
 
-func (afSync *ApiFoxSynchronizer) Sync(ctx *svc.ServiceContext) (err error) {
+func (afSync *ApiFoxSynchronizer) Sync(ctx *svc.ServiceContext, recordId primitive.ObjectID) (err error) {
 	logx.Info("同步 apifox 接口中")
-	go apiSyncScheduler(ctx, afSync)
+	go afSync.apifoxSyncProccess(ctx, recordId)
 	return
 }
 
-// todo: 加个 switch 适配多种 api doc 同步
-func apiSyncScheduler(ctx *svc.ServiceContext, afSync *ApiFoxSynchronizer) {
+func (afSync *ApiFoxSynchronizer) Store(ctx *svc.ServiceContext, recordId primitive.ObjectID) (err error) {
+	logx.Info("数据开始入库")
+	for idx, apiInfo := range afSync.ApiInfoList {
+		if apiInfo.ID.IsZero() {
+			apiInfo.ID = primitive.NewObjectID()
+		}
+		apiInfo.CreateAt = time.Now()
+		apiInfo.UpdateAt = time.Now()
+		syncDataEvent := DataHook{
+			Event: "sync_data",
+			Data:  apiInfo,
+		}
+		if idx == len(afSync.ApiInfoList)-1 {
+			syncDataEvent.IsEof = true
+			syncDataEvent.UpdateId = recordId
+		}
+		afSync.Hooks = append(afSync.Hooks, syncDataEvent)
+	}
+
+	for _, hook := range afSync.Hooks {
+		eventMsg, err := json.Marshal(hook)
+		if err != nil {
+			logx.Error("序列化 hook 失败", err)
+			return err
+		}
+
+		if err := ctx.KqPusherClient.Push(string(eventMsg)); err != nil {
+			logx.Error(err)
+			return err
+		}
+	}
+
+	return
+}
+
+func (afSync *ApiFoxSynchronizer) apifoxSyncProccess(ctx *svc.ServiceContext, recordId primitive.ObjectID) {
 	var err error
 
 	// 获取 apifox 授权
@@ -70,7 +116,7 @@ func apiSyncScheduler(ctx *svc.ServiceContext, afSync *ApiFoxSynchronizer) {
 	}
 
 	// 构建folder层级关系
-	folderLevelMap, err := afSync.buildFolderLevelMap()
+	folderLevelMap, err := afSync.BuildFolderLevelMap()
 	if err != nil {
 		return
 	}
@@ -82,24 +128,21 @@ func apiSyncScheduler(ctx *svc.ServiceContext, afSync *ApiFoxSynchronizer) {
 		}
 		afSync.ApiInfoList = append(afSync.ApiInfoList, apiInfo)
 	}
-	if err = afSync.Store(ctx); err != nil {
+	if err = afSync.Store(ctx, recordId); err != nil {
 		logx.Error(err)
 		return
 	}
 }
 
-func (afSync *ApiFoxSynchronizer) Store(ctx *svc.ServiceContext) (err error) {
-	logx.Info("数据开始入库")
-	for _, apiInfo := range afSync.ApiInfoList {
-		message, err := json.Marshal(apiInfo)
-		if err != nil {
-			logx.Error("序列化 apiDetail 失败", err)
-			return err
-		}
-		ctx.KqPusherClient.Push(string(message))
-	}
-	return
-}
+/*
+
+1. 获取doc授权
+2. 获取doc api树
+3. 提取Api id 列表
+4. 获取api Detail
+5. 提取detail信息，推入到kafka
+
+*/
 
 func (afSync *ApiFoxSynchronizer) apifoxAuth() (err error) {
 	var body []common.RequestFormBodyParameter
@@ -117,6 +160,7 @@ func (afSync *ApiFoxSynchronizer) apifoxAuth() (err error) {
 		BodyParam:   body,
 		Headers:     headers,
 	}
+	logx.Error(req)
 	logx.Info(fmt.Sprintf("获取apifox doc授权 [%s]", req.ReqUrl))
 	resp, err := hc.SendRequest(&req)
 	if err != nil {
@@ -140,7 +184,6 @@ func (afSync *ApiFoxSynchronizer) apifoxAuth() (err error) {
 	return
 }
 
-// GetApiTree 获取api列表
 func (afSync *ApiFoxSynchronizer) getApiDetailIds() (apiIds []string, err error) {
 	resp, err := afSync.getApiTree()
 	if err != nil {
@@ -192,43 +235,6 @@ func (afSync *ApiFoxSynchronizer) getApiTree() (resp *http.Response, err error) 
 	return
 }
 
-func (afSync *ApiFoxSynchronizer) buildFolderLevelMap() (folderLevelMap map[string]string, err error) {
-	resp, err := afSync.getApiTree()
-	if err != nil {
-		return
-	}
-	bodyByte := common.ReadBodyByte(resp)
-	if string(bodyByte) == "" {
-		logx.Error("body返回为空")
-		return
-	}
-	var apiFolders ApiFoxTree
-	if err = json.Unmarshal(bodyByte, &apiFolders); err != nil {
-		logx.Error(err)
-		return
-	}
-	folderLevelMap = make(map[string]string)
-	parseFolderLevel(apiFolders.Data, folderLevelMap, "")
-	return
-}
-
-func parseFolderLevel(folders []ApiFoxTreeData, folderLevelMap map[string]string, parentName string) {
-	for _, folder := range folders {
-		if folder.Type != "apiDetailFolder" {
-			continue
-		}
-		fullFolderName := folder.Name
-		if parentName != "" {
-			fullFolderName = fmt.Sprintf("%v.%v", parentName, fullFolderName)
-		}
-
-		folderLevelMap[strconv.Itoa(folder.Folder.Id)] = fullFolderName
-		if len(folder.Children) > 0 {
-			parseFolderLevel(folder.Children, folderLevelMap, fullFolderName)
-		}
-	}
-}
-
 func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[string]string) (apiDetail apidetail.Apidetail, err error) {
 	apiDetail.Source = logic.SYNC_APIFOX
 	getDetailUrl := strings.Replace(afSync.ApiFoxDetailUrl, "{docid}", afSync.ApiFoxShareAuthUser, -1)
@@ -259,14 +265,14 @@ func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[
 	}
 
 	// 获取resp.data
-	dataMap := readMapValueObject(bodyMap, "data")
+	dataMap := utils.ReadMapValueObject(bodyMap, "data")
 	if dataMap == nil {
 		err = errors.New(fmt.Sprintf("apifox detail %v 无data字段", apiId))
 		return
 	}
 
 	// 获取apiid
-	detailApiId := readMapValueInteger(dataMap, "id")
+	detailApiId := utils.ReadMapValueInteger(dataMap, "id")
 	if detailApiId < 0 {
 		err = errors.New("获取apiid失败")
 		if detailApiId == -1 {
@@ -280,7 +286,7 @@ func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[
 	apiDetail.ApiId = int(detailApiId)
 
 	// 获取folderId
-	folderId := readMapValueInteger(dataMap, "folderId")
+	folderId := utils.ReadMapValueInteger(dataMap, "folderId")
 	if folderId < 0 {
 		err = errors.New("获取folderId失败")
 		if folderId == -1 {
@@ -300,7 +306,7 @@ func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[
 	apiDetail.FolderName = foldersLevel[strconv.Itoa(folderId)]
 
 	// 获取method
-	method := readMapValueString(dataMap, "method")
+	method := utils.ReadMapValueString(dataMap, "method")
 	if method == "" {
 		err = errors.New("获取api method失败")
 		return
@@ -308,7 +314,7 @@ func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[
 	apiDetail.ApiMethod = strings.ToUpper(method)
 
 	// 获取api path
-	apiPath := readMapValueString(dataMap, "path")
+	apiPath := utils.ReadMapValueString(dataMap, "path")
 	if apiPath == "" {
 		err = errors.New("获取api path失败")
 		return
@@ -316,7 +322,7 @@ func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[
 	apiDetail.ApiPath = apiPath
 
 	// 获取api name
-	apiName := readMapValueString(dataMap, "name")
+	apiName := utils.ReadMapValueString(dataMap, "name")
 	if apiName == "" {
 		err = errors.New("获取api名称失败")
 		return
@@ -324,13 +330,13 @@ func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[
 	apiDetail.ApiName = apiName
 
 	// 设置api auth
-	auth := readMapValueObject(dataMap, "auth")
+	auth := utils.ReadMapValueObject(dataMap, "auth")
 	if auth == nil {
 		err = errors.New("apiDetail没有 resp.data.auth字段")
 		logx.Error(err)
 		return
 	}
-	authType := readMapValueString(auth, "type")
+	authType := utils.ReadMapValueString(auth, "type")
 	if authType == "" {
 		// logx.Error(fmt.Sprintf("获取 api=[%v] data.auth 失败 ", apiId))
 		apiDetail.ApiAuthType = "0"
@@ -375,15 +381,122 @@ func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[
 		apiDetail.ApiResponse.Fields = append(apiDetail.ApiResponse.Fields, &apiRespField)
 	}
 
+	// 构建 query
+	apiQueries, err := buildRequestQuery(bodyMap)
+	if err != nil {
+		logx.Error("构建 api query 失败")
+		logx.Error(err)
+		return
+	}
+	apiDetail.ApiParameters = apiQueries
+	// logx.Errorf("api query %v", apiDetail.ApiParameters[0].QueryName)
+
+	apiHeaders := buildHeaders()
+	if apiHeaders != nil {
+		apiDetail.ApiHeaders = apiHeaders
+	}
+
 	apiInfoB, _ := json.Marshal(apiDetail)
 	logx.Info(string(apiInfoB))
 	return
 }
 
+func buildHeaders() (apiHeaders []*apidetail.ApiHeader) {
+	commonHeaderApi := "https://apifox.com/api/v1/shared-docs/2e301f8d-5ee8-4b0d-a111-0a21c30ba557/common-parameters"
+	var headers []common.RequestHeader
+	headers = append(headers, common.RequestHeader{Key: "X-Client-Version", Value: logic.HEADER_APIFOX_VERSION})
+	headers = append(headers, common.RequestHeader{Key: "User-Agent", Value: logic.HEADER_USERAGENT_APIFOX})
+	req := common.Request{
+		Method:      "GET",
+		ReqUrl:      commonHeaderApi,
+		SetCookies:  false,
+		NeedCookies: true,
+		Headers:     headers,
+	}
+	resp, err := hc.SendRequest(&req)
+	if err != nil {
+		return nil
+	}
+	if resp == nil {
+		// err = errors.New("响应为空")
+		logx.Error("获取公共参数,接口返回空")
+		return nil
+	}
+	bodyMap, err := common.ReadBody(resp)
+	if err != nil {
+		logx.Error("读取response 失败")
+		return nil
+	}
+	dataMap := utils.ReadMapValueObject(bodyMap, "data")
+	paramsMap := utils.ReadMapValueObject(dataMap, "parameters")
+	headerList := utils.ReadArrayAny(paramsMap, "header")
+	for _, header := range headerList {
+		headerAsMap, ok := header.(map[string]any)
+		if !ok {
+			logx.Error("common header 类型不是 map[string]any")
+			continue
+		}
+		apiHeaders = append(apiHeaders, &apidetail.ApiHeader{
+			HeaderName:  headerAsMap["name"].(string),
+			HeaderValue: headerAsMap["defaultValue"].(string),
+		})
+	}
+	return
+}
+
+func (afSync *ApiFoxSynchronizer) BuildFolderLevelMap() (folderLevelMap map[string]string, err error) {
+	resp, err := afSync.getApiTree()
+	if err != nil {
+		return
+	}
+	bodyByte := common.ReadBodyByte(resp)
+	if string(bodyByte) == "" {
+		logx.Error("body返回为空")
+		return
+	}
+	var apiFolders ApiFoxTree
+	if err = json.Unmarshal(bodyByte, &apiFolders); err != nil {
+		logx.Error(err)
+		return
+	}
+	folderLevelMap = make(map[string]string)
+	parseFolderLevel(apiFolders.Data, folderLevelMap, "")
+	return
+}
+
+func buildRequestQuery(response map[string]any) (apiQuery []*apidetail.ApiParameter, err error) {
+	dataMap := utils.ReadMapValueObject(response, "data")
+	requestParams := utils.ReadMapValueObject(dataMap, "parameters")
+	queries := utils.ReadArrayAny(requestParams, "query")
+	for _, query := range queries {
+		q, ok := query.(map[string]any)
+		if !ok {
+			logx.Error("data.parameters.query[] 不是 map[string]any 类型")
+			break
+		}
+		paramName, ok := q["name"].(string)
+		if !ok {
+			logx.Errorf("data.parameters.query[].name 不是 string, value=[%v]", q["name"])
+			break
+		}
+		valueType, ok := q["type"].(string)
+		if !ok {
+			logx.Errorf("data.parameters.query[].type 不是 string, value=[%v]", q["type"])
+			break
+		}
+		apiQuery = append(apiQuery, &apidetail.ApiParameter{
+			QueryName:  paramName,
+			QueryValue: fmt.Sprintf("$%v", paramName),
+			ValueType:  valueType,
+		})
+	}
+	return
+}
+
 func buildRequestBody(response map[string]any) (apiPayload *apidetail.ApiPayload, err error) {
 	apiPayload = &apidetail.ApiPayload{}
-	dataMap := readMapValueObject(response, "data")
-	requestBody := readMapValueObject(dataMap, "requestBody")
+	dataMap := utils.ReadMapValueObject(response, "data")
+	requestBody := utils.ReadMapValueObject(dataMap, "requestBody")
 	requestBodyByte, err := json.Marshal(requestBody)
 	if err != nil {
 		return
@@ -423,108 +536,8 @@ func buildRequestBody(response map[string]any) (apiPayload *apidetail.ApiPayload
 	return
 }
 
-func readArrayAny(data map[string]any, key string) (arr []any) {
-	mapValue, ok := data[key]
-	if !ok {
-		// logx.Error(fmt.Sprintf("从map读取key=[%v] 失败", key))
-		// by, _ := json.Marshal(data)
-		// logx.Error(string(by))
-		return nil
-	}
-	arr, ok = mapValue.([]any)
-	if !ok {
-		logx.Error("map-value 不是Array类型")
-		mapValueB, _ := json.Marshal(mapValue)
-		logx.Error(string(mapValueB))
-		return
-	}
-	return
-}
-
-func readMapValueInteger(data map[string]any, key string) int {
-	mapValue, ok := data[key]
-	if !ok {
-		return -2
-	}
-	mapValueByte, _ := json.Marshal(mapValue)
-	value, err := strconv.Atoi(string(mapValueByte))
-	if err != nil {
-		logx.Error(err)
-		return -1
-
-	}
-	return value
-}
-
-func readMapValueString(data map[string]any, key string) string {
-	mapValue, ok := data[key]
-	if !ok {
-		return ""
-	}
-	value, ok := mapValue.(string)
-	if !ok {
-		return ""
-	}
-	return value
-}
-
-func readMapValueObject(data map[string]any, key string) map[string]any {
-	mapValue, ok := data[key]
-	if !ok {
-		return nil
-	}
-	value, ok := mapValue.(map[string]any)
-	if !ok {
-		return nil
-	}
-	return value
-}
-
-func assertString(v any) string {
-	var value string
-	value, ok := v.(string)
-	if !ok {
-		return ""
-	}
-	return value
-}
-
-func assertArrayAny(v any) []any {
-	value, ok := v.([]any)
-	if !ok {
-		return nil
-	}
-	return value
-}
-
-func parseRequestJsonSchema(requestBody map[string]any, jsonMap map[string]apidetail.FieldMapValue) (err error) {
-	schemaMap := readMapValueObject(requestBody, "jsonSchema")
-
-	/* 读取property字段*/
-	propertyMap := readMapValueObject(schemaMap, "properties")
-
-	/* 读取required字段 */
-	var requiredFields []string
-	requiredArr := readArrayAny(schemaMap, "required")
-	if requiredArr == nil {
-		logx.Error("无效接口,请求结构无 required 字段")
-	}
-	for _, r := range requiredArr {
-		requiredField, ok := r.(string)
-		if !ok {
-			continue
-		}
-		requiredFields = append(requiredFields, requiredField)
-	}
-
-	if err = parseProperty(propertyMap, requiredFields, jsonMap, ""); err != nil {
-		return
-	}
-	return
-}
-
 func buildResponseFields(response map[string]any) (value map[string]apidetail.FieldMapValue, err error) {
-	data := readMapValueObject(response, "data")
+	data := utils.ReadMapValueObject(response, "data")
 	if data == nil {
 		err = errors.New("获取 data 字段失败")
 		bmap, _ := json.Marshal(response)
@@ -533,7 +546,7 @@ func buildResponseFields(response map[string]any) (value map[string]apidetail.Fi
 	}
 
 	/* 读取response字段*/
-	responseSpecArr := readArrayAny(data, "responses")
+	responseSpecArr := utils.ReadArrayAny(data, "responses")
 	if responseSpecArr == nil {
 		logx.Error("无效接口,响应结构无 responses 字段")
 	}
@@ -545,14 +558,14 @@ func buildResponseFields(response map[string]any) (value map[string]apidetail.Fi
 	}
 
 	/* 读取jsonSchema字段*/
-	jsonSchemaMap := readMapValueObject(responseSpecMap, "jsonSchema")
+	jsonSchemaMap := utils.ReadMapValueObject(responseSpecMap, "jsonSchema")
 
 	/* 读取property字段*/
-	propertyMap := readMapValueObject(jsonSchemaMap, "properties")
+	propertyMap := utils.ReadMapValueObject(jsonSchemaMap, "properties")
 
 	/* 读取required字段 */
 	var requiredFields []string
-	requiredArr := readArrayAny(jsonSchemaMap, "required")
+	requiredArr := utils.ReadArrayAny(jsonSchemaMap, "required")
 	if requiredArr == nil {
 		logx.Error("无效接口,响应结构无 required 字段")
 	}
@@ -567,6 +580,49 @@ func buildResponseFields(response map[string]any) (value map[string]apidetail.Fi
 	value = make(map[string]apidetail.FieldMapValue)
 	if err = parseProperty(propertyMap, requiredFields, value, ""); err != nil {
 		logx.Error("解析jsonSchema.property 失败")
+		return
+	}
+	return
+}
+
+func parseFolderLevel(folders []ApiFoxTreeData, folderLevelMap map[string]string, parentName string) {
+	for _, folder := range folders {
+		if folder.Type != "apiDetailFolder" {
+			continue
+		}
+		fullFolderName := folder.Name
+		if parentName != "" {
+			fullFolderName = fmt.Sprintf("%v.%v", parentName, fullFolderName)
+		}
+
+		folderLevelMap[strconv.Itoa(folder.Folder.Id)] = fullFolderName
+		if len(folder.Children) > 0 {
+			parseFolderLevel(folder.Children, folderLevelMap, fullFolderName)
+		}
+	}
+}
+
+func parseRequestJsonSchema(requestBody map[string]any, jsonMap map[string]apidetail.FieldMapValue) (err error) {
+	schemaMap := utils.ReadMapValueObject(requestBody, "jsonSchema")
+
+	/* 读取property字段*/
+	propertyMap := utils.ReadMapValueObject(schemaMap, "properties")
+
+	/* 读取required字段 */
+	var requiredFields []string
+	requiredArr := utils.ReadArrayAny(schemaMap, "required")
+	if requiredArr == nil {
+		logx.Error("无效接口,请求结构无 required 字段")
+	}
+	for _, r := range requiredArr {
+		requiredField, ok := r.(string)
+		if !ok {
+			continue
+		}
+		requiredFields = append(requiredFields, requiredField)
+	}
+
+	if err = parseProperty(propertyMap, requiredFields, jsonMap, ""); err != nil {
 		return
 	}
 	return
@@ -590,16 +646,16 @@ func parseProperty(property map[string]any, required []string, fieldMap map[stri
 			return err
 		}
 		// 断言类型
-		dataType := assertString(propertyInfo.Type)
+		dataType := utils.AssertString(propertyInfo.Type)
 		if dataType == "" {
-			dataTypeList := assertArrayAny(propertyInfo.Type)
+			dataTypeList := utils.AssertArrayAny(propertyInfo.Type)
 			if len(dataTypeList) == 0 || dataTypeList == nil {
 				err = errors.New(fmt.Sprintf("解析 api detail 失败, 字段类型不是Array[] / string, %v", propertyInfo.Type))
 				logx.Error(err)
 				return err
 			}
 			// todo: 暂时不处理字段类型 array, 值为空的情况
-			dataType = assertString(dataTypeList[0])
+			dataType = utils.AssertString(dataTypeList[0])
 		}
 		if propertyInfo.Type == "object" {
 			return parseProperty(propertyInfo.Properties, propertyInfo.Required, fieldMap, fieldKey)
@@ -619,16 +675,16 @@ func parseProperty(property map[string]any, required []string, fieldMap map[stri
 			if err = json.Unmarshal(itemsByte, &itemsProperty); err != nil {
 				return err
 			}
-			itemDataType := assertString(itemsProperty.Type)
+			itemDataType := utils.AssertString(itemsProperty.Type)
 			if itemDataType == "" {
-				dataTypeList := assertArrayAny(itemsProperty.Type)
+				dataTypeList := utils.AssertArrayAny(itemsProperty.Type)
 				if len(dataTypeList) == 0 {
 					err = errors.New(fmt.Sprintf("解析 api detail 失败, 字段类型不是Array[] / string, %v", itemsProperty.Type))
 					logx.Error(err)
 					return err
 				}
 				// todo: 暂时不处理字段类型 array, 值为空的情况
-				itemDataType = assertString(dataTypeList[0])
+				itemDataType = utils.AssertString(dataTypeList[0])
 			}
 			if itemDataType == "object" {
 				return parseProperty(itemsProperty.Properties, itemsProperty.Required, fieldMap, fieldKey)
