@@ -12,12 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/redis"
-
 )
 
 func (runner *ApiExecutor) Initialize(rdsClient *redis.Redis) {
 	runner.parametrization(rdsClient)
-	// requestID := uuid.New().String()
 }
 
 func (runner *ApiExecutor) parametrization(rdsClient *redis.Redis) error {
@@ -29,7 +27,7 @@ func (runner *ApiExecutor) parametrization(rdsClient *redis.Redis) error {
 			for field, value := range action.Request.Payload {
 				valueStr := value.(string)
 				referExpressList, data := runner.proccessRefer(rdsClient, `\$[^ ]*`, currentRefer, valueStr)
-				if len(referExpressList) > 1 {
+				if len(referExpressList) > 0 {
 					for _, referExpress := range referExpressList {
 						runner.Cases[sdx].Actions[adx].Request.Payload[field] = data[referExpress]
 					}
@@ -38,7 +36,7 @@ func (runner *ApiExecutor) parametrization(rdsClient *redis.Redis) error {
 
 			//  处理path
 			referExpressList, data := runner.proccessRefer(rdsClient, `\$(\w+(\.\w+|\:\w+)+)`, action.Request.Path, currentRefer)
-			if len(referExpressList) > 1 {
+			if len(referExpressList) > 0 {
 				for _, referExpress := range referExpressList {
 					apiPath := runner.Cases[sdx].Actions[adx].Request.Path
 					runner.Cases[sdx].Actions[adx].Request.Path = strings.Replace(apiPath, referExpress, data[referExpress], -1)
@@ -48,7 +46,7 @@ func (runner *ApiExecutor) parametrization(rdsClient *redis.Redis) error {
 			// 处理query
 			for field, value := range action.Request.Params {
 				referExpressList, data := runner.proccessRefer(rdsClient, `\$(\w+(\.\w+|\:\w+)+)`, value, currentRefer)
-				if len(referExpressList) > 1 {
+				if len(referExpressList) > 0 {
 					for _, referExpress := range referExpressList {
 						fieldValue := runner.Cases[sdx].Actions[adx].Request.Params[field]
 						runner.Cases[sdx].Actions[adx].Request.Params[field] = strings.Replace(fieldValue, referExpress, data[referExpress], -1)
@@ -59,10 +57,12 @@ func (runner *ApiExecutor) parametrization(rdsClient *redis.Redis) error {
 			// 处理headers
 			for key, value := range action.Request.Headers {
 				referExpressList, data := runner.proccessRefer(rdsClient, `\$(\w+(\.\w+|\:\w+)+)`, currentRefer, value)
-				if len(referExpressList) > 1 {
+				if len(referExpressList) > 0 {
 					for _, referExpress := range referExpressList {
 						headervalue := runner.Cases[sdx].Actions[adx].Request.Headers[key]
+						logx.Errorf("header value: %s", headervalue)
 						runner.Cases[sdx].Actions[adx].Request.Headers[key] = strings.Replace(headervalue, referExpress, data[referExpress], -1)
+						logx.Errorf("header value: %s", runner.Cases[sdx].Actions[adx].Request.Headers[key])
 					}
 				}
 			}
@@ -142,6 +142,7 @@ func (runner *ApiExecutor) getReferRedis(rdsClient *redis.Redis, fetchRefer stri
 
 // 传入一个action key 的表达式，转换为actionid的表达式
 func (runner *ApiExecutor) getReferAction(currentActRefer string, fetchActionRefer string) (string, error) {
+	logx.Infof("%s, %s", currentActRefer, fetchActionRefer)
 	if currentActRefer == "" {
 		return "", fmt.Errorf("current action refer is empty")
 	}
@@ -162,14 +163,13 @@ func (runner *ApiExecutor) getReferAction(currentActRefer string, fetchActionRef
 
 	currentActParts := strings.Split(currentActRefer, ".")
 	fetchActParts := strings.Split(referExpress, ".")
-
 	if currentActParts[0] == fetchActParts[0] {
 		// 引用的是同个场景
 		logx.Error("引用同个场景")
 		preActions := runner.PreActionsMap[currentActParts[1]]
 		for _, pa := range strings.Split(preActions, ",") {
 			if pa == runner.ActionMap[fetchActParts[1]] {
-				result = fmt.Sprintf("$sc.%s.%s", runner.SceneMap[currentActParts[0]], pa)
+				result = fmt.Sprintf("$sc.%s.%s.%s", runner.SceneMap[currentActParts[0]], pa, strings.Join(fetchActParts[2:], "."))
 				return result, nil
 			}
 		}
@@ -181,7 +181,7 @@ func (runner *ApiExecutor) getReferAction(currentActRefer string, fetchActionRef
 	targetSceneId := runner.SceneMap[currentActParts[0]]
 	targetActionId := runner.ActionMap[fetchActParts[1]]
 	// 加上action 后面引用的东西
-	result = fmt.Sprintf("$sc.%s.%s", targetSceneId, targetActionId)
+	result = fmt.Sprintf("$sc.%s.%s.%s", targetSceneId, targetActionId, strings.Join(fetchActParts[2:], "."))
 	return result, nil
 }
 
@@ -224,8 +224,11 @@ func (runner *ApiExecutor) Run(ctx context.Context, rdsClient *redis.Redis) {
 		Store:  runner.StoreActionResult,
 		Fetch:  runner.FetchDependency,
 	})
+	logx.Info("执行器初始化完成")
 	for _, scene := range runner.Cases {
-		go scene.Execute(ctx)
+		logx.Infof("开始执行场景 --%s", scene.Description)
+		logx.Error(scene)
+		go scene.Execute(ctx, runner)
 	}
 }
 

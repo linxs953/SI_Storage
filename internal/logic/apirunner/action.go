@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -15,10 +16,41 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
-func (ac *Action) TriggerAc(ctx context.Context) error {
+func (ac *Action) TriggerAc(ctx context.Context, executore *ApiExecutor) error {
 	ac.validate()
-	ac.processActionDepend()
-	ac.sendRequest(ctx)
+	ac.processActionDepend(executore)
+	logx.Error("开始发送请求")
+	resp, err := ac.sendRequest(ctx)
+	if err != nil {
+		logx.Error(err)
+	}
+	defer resp.Body.Close()
+
+	// 创建一个缓冲区来存储读取的数据
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, resp.Body)
+	if err != nil {
+		logx.Error(err)
+		return err
+	}
+	bodyStr := buf.String()
+	logx.Infof("执行完成 %v", bodyStr)
+
+	result := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(bodyStr), &result); err != nil {
+		logx.Error(err)
+		return err
+	}
+
+	ac.store(ctx, executore, fmt.Sprintf("%s.%s", ac.SceneID, ac.ActionID), result)
+	return nil
+}
+
+func (ac *Action) store(ctx context.Context, executor *ApiExecutor, key string, data map[string]interface{}) error {
+	executor.mu.Lock()
+	defer executor.mu.Unlock()
+	executor.Result[key] = data
+	logx.Error(executor.Result)
 	return nil
 }
 
@@ -38,12 +70,13 @@ func (ac *Action) validate() error {
 	return nil
 }
 
-func (ac *Action) processActionDepend() error {
+func (ac *Action) processActionDepend(executor *ApiExecutor) error {
 	var err error
 	matchReferFunc := func(refer string) string {
-		pattern := `\$sc\.(.*?)\.(.*?)`
+		pattern := `\$sc\.(?:[a-zA-Z0-9-]{1,40}\.)*[a-zA-Z0-9-]{1,40}$`
 		re := regexp.MustCompile(pattern)
 		match := re.FindStringSubmatch(refer)
+		logx.Errorf("source=%s, match=%s", refer, match)
 		if len(match) > 0 {
 			return match[0]
 		}
@@ -52,6 +85,7 @@ func (ac *Action) processActionDepend() error {
 
 	getReferData := func(resp map[string]interface{}, dataKey string) interface{} {
 		if strings.Contains(dataKey, ".") {
+			logx.Infof("dataKey=%s", dataKey)
 			var result interface{}
 			result = resp
 			parts := strings.Split(dataKey, ".")
@@ -90,44 +124,76 @@ func (ac *Action) processActionDepend() error {
 		}
 	}
 
+	tryGetResp := func(ctx context.Context, searchKey string) (map[string]interface{}, error) {
+		executor.mu.RLock()
+		defer executor.mu.RUnlock()
+		startTimeStamp := time.Now()
+		for {
+			if time.Since(startTimeStamp) >= time.Duration(ac.Conf.Timeout)*time.Second {
+				break
+			}
+			// 尝试去获取结果，直到拿到为止
+			resp, ok := executor.Result[searchKey]
+			if ok {
+				return resp, nil
+			}
+			<-time.After(time.Second * 3)
+		}
+		return nil, fmt.Errorf("获取resp超时, actionKey=[%s]", searchKey)
+	}
+
 	for hname, hvalue := range ac.Request.Headers {
 		matchKey := matchReferFunc(hvalue)
 		if matchKey == "" {
 			continue
 		}
-		// 阻塞: 读取 resp
-		data := getReferData(nil, "").(string)
-		ac.Request.Headers[hname] = data
-	}
-
-	for key, payload := range ac.Request.Payload {
-		payloadStr, ok := payload.(string)
-		if !ok {
+		refer := strings.Replace(matchKey, "$sc.", "", -1)
+		referParts := strings.Split(refer, ".")
+		logx.Error(referParts)
+		if len(referParts) < 3 {
 			continue
 		}
-		matchKey := matchReferFunc(payloadStr)
-		if matchKey == "" {
-			continue
+		var (
+			actionKey string = fmt.Sprintf("%s.%s", referParts[0], referParts[1])
+			dataKey   string = fmt.Sprintf("%s", strings.Join(referParts[2:], "."))
+		)
+		logx.Error(dataKey)
+		resp, err := tryGetResp(context.Background(), actionKey)
+		if err != nil {
+			return err
 		}
-		ac.Request.Payload[key] = getReferData(nil, payloadStr)
+		data := getReferData(resp, dataKey).(string)
+		ac.Request.Headers[hname] = strings.Replace(hvalue, matchKey, data, -1)
+		logx.Infof("%s=[%s]", hname, ac.Request.Headers[hname])
 	}
 
-	for qname, qvalue := range ac.Request.Params {
-		matchKey := matchReferFunc(qvalue)
-		if matchKey == "" {
-			continue
-		}
-		data := getReferData(nil, qvalue).(string)
-		ac.Request.Params[qname] = data
-	}
+	// for key, payload := range ac.Request.Payload {
+	// 	payloadStr, ok := payload.(string)
+	// 	if !ok {
+	// 		continue
+	// 	}
+	// 	matchKey := matchReferFunc(payloadStr)
+	// 	if matchKey == "" {
+	// 		continue
+	// 	}
+	// 	ac.Request.Payload[key] = getReferData(nil, payloadStr)
+	// }
 
-	// 处理 api path 依赖
-	matchKey := matchReferFunc(ac.Request.Path)
-	if matchKey != "" {
-		data := getReferData(nil, ac.Request.Path).(string)
-		ac.Request.Path = data
-	}
+	// for qname, qvalue := range ac.Request.Params {
+	// 	matchKey := matchReferFunc(qvalue)
+	// 	if matchKey == "" {
+	// 		continue
+	// 	}
+	// 	data := getReferData(nil, qvalue).(string)
+	// 	ac.Request.Params[qname] = data
+	// }
 
+	// // 处理 api path 依赖
+	// matchKey := matchReferFunc(ac.Request.Path)
+	// if matchKey != "" {
+	// 	data := getReferData(nil, ac.Request.Path).(string)
+	// 	ac.Request.Path = data
+	// }
 	return err
 }
 
@@ -171,9 +237,9 @@ func (ac *Action) processActionDepend() error {
 
 func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 	client := &http.Client{
-		Timeout: time.Duration(ac.Conf.Timeout),
+		// Timeout: time.Duration(ac.Conf.Timeout),
 	}
-	success := make(chan bool)
+	// success := make(chan bool)
 	// 输入验证
 	if ac.SceneID == "" || ac.ApiID == "" || ac.ActionID == "" {
 		return nil, errors.New("missing required field(s)")
@@ -185,19 +251,26 @@ func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 	}
 
 	// 构建HTTP请求（伪代码）
-	url := fmt.Sprintf("%s/%s?", ac.Request.Domain, ac.Request.Path)
+	url := fmt.Sprintf("https://%s%s?", ac.Request.Domain, ac.Request.Path)
+	if len(ac.Request.Params) == 0 {
+		url = strings.TrimRight(url, "?")
+	}
 	for key, value := range ac.Request.Params {
 		url += fmt.Sprintf("%s=%s&", key, value)
 	}
 	url = strings.TrimRight(url, "&")
 
-	payloadBytes, err := json.Marshal(ac.Request.Payload)
-	if err != nil {
-		return nil, err
-	}
+	logx.Infof("SendRequest Url: %v", url)
 
-	req, err := http.NewRequest(ac.Request.Method, url, bytes.NewReader(payloadBytes))
+	var payloadStr string
+	for k, v := range ac.Request.Payload {
+		payloadStr += fmt.Sprintf("%s=%v&", k, v)
+	}
+	payloadStr = strings.TrimRight(payloadStr, "&")
+
+	req, err := http.NewRequest(ac.Request.Method, url, strings.NewReader(payloadStr))
 	if err != nil {
+		logx.Error(err)
 		return nil, err
 	}
 
@@ -210,6 +283,7 @@ func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 	// 发送请求并处理响应（伪代码）
 	resp, err := client.Do(req)
 	if err != nil {
+		logx.Error(err)
 		for ac.Request.HasRetry < ac.Conf.Retry {
 			ac.Request.HasRetry++
 			time.After(time.Second * 1)
@@ -228,18 +302,20 @@ func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("request failed with status code %d", resp.StatusCode)
 	}
-	success <- true
 	select {
 	case <-ctx.Done():
 		{
+			logx.Error("ctx done")
 			return nil, fmt.Errorf("上下文取消, 取消执行")
 		}
 	case <-time.After(time.Duration(ac.Conf.Timeout) * time.Second):
 		{
+			logx.Error("请求超时了")
 			return nil, fmt.Errorf("发送请求超时")
 		}
-	case <-success:
+	default:
 		{
+			logx.Error("触发default")
 			return resp, nil
 		}
 	}

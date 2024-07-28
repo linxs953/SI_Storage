@@ -2,7 +2,7 @@ package syncTask
 
 import (
 	"context"
-	"lexa-engine/internal/model/mongo"
+	mongo "lexa-engine/internal/model/mongo"
 	"lexa-engine/internal/model/mongo/sync_task"
 	"lexa-engine/internal/svc"
 

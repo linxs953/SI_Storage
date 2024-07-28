@@ -22,6 +22,7 @@ type (
 		FindByApiId(ctx context.Context, apiId int) (*Apidetail, error)
 		FindApiList(ctx context.Context, page int64, pageSize int64) ([]*Apidetail, error)
 		GetListCount(ctx context.Context) (int64, error)
+		FindMatch(ctx context.Context, regexKey string) ([]Apidetail, error)
 	}
 
 	customApidetailModel struct {
@@ -94,6 +95,15 @@ func (cm *customApidetailModel) Insert(ctx context.Context, data *Apidetail) err
 		return err
 	}
 
+}
+
+func (cm *customApidetailModel) FindMatch(ctx context.Context, regexKey string) ([]Apidetail, error) {
+	var apis []Apidetail
+	v := fmt.Sprintf(".*%s.*", regexKey)
+	if err := cm.conn.Find(ctx, &apis, bson.D{{Key: "name", Value: bson.D{{Key: "$regex", Value: v}}}}); err != nil {
+		return nil, err
+	}
+	return apis, nil
 }
 
 // NewApidetailModel returns a model for the mongo.

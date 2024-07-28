@@ -343,6 +343,7 @@ func buildApiExecutor(filename string) (*apirunner.ApiExecutor, error) {
 			}
 			if depend.Type == "2" {
 				apiheaders[depend.Refer.Target] = fmt.Sprintf("Bearer %s.%s", depend.ActionKey, depend.DataKey)
+				logx.Errorf("apiheader datakey: %s", depend.DataKey)
 			}
 
 			if depend.Type == "3" {

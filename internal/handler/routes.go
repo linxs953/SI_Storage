@@ -6,6 +6,7 @@ import (
 
 	api "lexa-engine/internal/handler/api"
 	cache "lexa-engine/internal/handler/cache"
+	scene "lexa-engine/internal/handler/scene"
 	sync "lexa-engine/internal/handler/sync"
 	syncTask "lexa-engine/internal/handler/syncTask"
 	task "lexa-engine/internal/handler/task"
@@ -72,6 +73,16 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 	server.AddRoutes(
 		[]rest.Route{
 			{
+				Method:  http.MethodGet,
+				Path:    "/getSceneWithId",
+				Handler: task.GetSceneWithIdHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/getPreActions",
+				Handler: task.GetPreActionsHandler(serverCtx),
+			},
+			{
 				Method:  http.MethodPost,
 				Path:    "/create",
 				Handler: task.CreateTaskHandler(serverCtx),
@@ -117,6 +128,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/getApiList",
 				Handler: api.GetApiListHandler(serverCtx),
 			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/searchApi",
+				Handler: api.SearchApiHandler(serverCtx),
+			},
 		},
 		rest.WithPrefix("/api"),
 	)
@@ -130,5 +146,36 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 		},
 		rest.WithPrefix("/cache"),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodPost,
+				Path:    "/new",
+				Handler: scene.NewSceneHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPut,
+				Path:    "/update",
+				Handler: scene.ModifySceneHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodDelete,
+				Path:    "/delete",
+				Handler: scene.DeleteSceneHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/get",
+				Handler: scene.GetSceneHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/allScenes",
+				Handler: scene.GetSceneListHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/scene"),
 	)
 }

@@ -8,7 +8,7 @@ import (
 	"lexa-engine/internal/logic/sync/apitest/types"
 	apitestUtils "lexa-engine/internal/logic/sync/apitest/utils"
 	"lexa-engine/internal/logic/sync/synchronizer/utils"
-	"lexa-engine/internal/model/mongo"
+	mongo "lexa-engine/internal/model/mongo"
 	"lexa-engine/internal/model/mongo/apidetail"
 	"lexa-engine/internal/svc"
 	"os"

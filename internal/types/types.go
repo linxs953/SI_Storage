@@ -16,6 +16,32 @@ type StartResp struct {
 	Data    interface{} `json:"data"`
 }
 
+type GetSceneWithIdDto struct {
+	TaskID string `json:"taskId"`
+}
+
+type GetSceneWithIdResp struct {
+	Code    int              `json:"code"`
+	Message string           `json:"messsage"`
+	Data    GetTaskSceneData `json:"data"`
+}
+
+type GetTaskSceneData struct {
+	Scenes    []string               `json:"scenes"`
+	SceneInfo map[string]interface{} `json:"sceneInfo"`
+}
+
+type GetPreActionsDto struct {
+	DependRefer    string `json:"dependRefer"`
+	CurrentAcRefer string `json:"currentAcRefer"`
+}
+
+type GetPreActionsResp struct {
+	Code    int                      `json:"code"`
+	Message string                   `json:"messsage"`
+	Data    []map[string]interface{} `json:"data"`
+}
+
 type TaskInfo struct {
 	TaskId   string      `json:"taskId"`
 	TaskName string      `json:"taskName"`
@@ -32,9 +58,9 @@ type RunResp struct {
 }
 
 type CreateTaskDto struct {
-	TaskName string `json:"taskName"`
-	TaskType string `json:"taskType"`
-	TaskSpec string `json:"taskSpec"`
+	TaskName  string   `json:"taskName"`
+	TaskType  string   `json:"taskType"`
+	SceneList []string `json:"sceneList"`
 }
 
 type CreateTaskResp struct {
@@ -121,7 +147,102 @@ type ApiListResp struct {
 	Data        []map[string]interface{} `json:"data"`
 }
 
+type ApiSearchResp struct {
+	Code    int                      `json:"code"`
+	Message string                   `json:"messsage"`
+	Data    []map[string]interface{} `json:"data"`
+}
+
+type SearchDto struct {
+	Keyword string `query:"keyword"`
+}
+
 type TDInitResp struct {
 	Code    int
 	Message string
+}
+
+type GetSceneListDto struct {
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
+}
+
+type GetSceneListVO struct {
+	Code    int                      `json:"code"`
+	Message string                   `json:"message"`
+	Data    []map[string]interface{} `json:"data"`
+}
+
+type CreateSceneDto struct {
+	Scname      string   `json:"scname"`
+	Author      string   `json:"author"`
+	Description string   `json:"description"`
+	Actions     []string `json:"actions"`
+	Key         string   `json:"key"`
+	Env         string   `json:"env"`
+}
+
+type CreateSceneVO struct {
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    CreateSceneData `json:"data"`
+}
+
+type CreateSceneData struct {
+	SceneId   string `json:"sceneId,omitempty"`
+	SceneName string `json:"scname,omitempty"`
+	Author    string `json:"author,omitempty"`
+}
+
+type GetSceneDto struct {
+	Scid string `json:"scid"`
+}
+
+type GetSceneVO struct {
+	Code    int          `json:"code"`
+	Message string       `json:"message"`
+	Data    GetSceneData `json:"data,omitempty"`
+}
+
+type GetSceneData struct {
+	ID          string                   `json:"id,omitempty"`
+	Author      string                   `json:"author,omitempty"`
+	SceneName   string                   `json:"scname,omitempty"`
+	Description string                   `json:"description,omitempty"`
+	SceneId     string                   `json:"sceneId,omitempty"`
+	SearchKey   string                   `json:"searchKey,omitempty"`
+	Env         string                   `json:"env,omitempty"`
+	Actions     []map[string]interface{} `json:"actions,omitempty"`
+	CreateAt    string                   `json:"createAt,omitempty"`
+	UpdateAt    string                   `json:"updateAt,omitempty"`
+}
+
+type DeleteSceneDto struct {
+	Scid string `json:"scid"`
+}
+
+type DeleteSceneVO struct {
+	Code    int                    `json:"code"`
+	Message string                 `json:"message"`
+	Data    map[string]interface{} `json:"data"`
+}
+
+type UpdateSceneDto struct {
+	Scid string      `json:"scid"`
+	Data SceneUpdate `json:"data"`
+}
+
+type SceneUpdate struct {
+	Scname      string                   `json:"scname"`
+	Author      string                   `json:"author"`
+	Description string                   `json:"description"`
+	Key         string                   `json:"key"`
+	Env         string                   `json:"env"`
+	Actions     []map[string]interface{} `json:"actions"`
+}
+
+type UpdateSceneVO struct {
+	Code    int          `json:"code"`
+	Message string       `json:"message"`
+	Data    GetSceneData `json:"data,omitempty"`
 }

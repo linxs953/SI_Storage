@@ -4,10 +4,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
-
 	// "os"
 
 	"github.com/google/uuid"
@@ -19,7 +19,7 @@ import (
 	"lexa-engine/internal/config"
 	"lexa-engine/internal/handler"
 	"lexa-engine/internal/logic/task"
-	"lexa-engine/internal/model/mongo"
+	mongo "lexa-engine/internal/model/mongo"
 	"lexa-engine/internal/model/mongo/apidetail"
 	"lexa-engine/internal/mqs"
 	"lexa-engine/internal/svc"
@@ -55,15 +55,41 @@ func main() {
 	}
 }
 
+func customCORS() rest.Middleware {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			logx.Error(r.Header)
+			if origin != "" {
+				logx.Infof("origin: %s", origin)
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+				w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+			}
+
+			if r.Method == http.MethodOptions {
+				w.Header().Set("Content-Length", "0") // Set content length to 0 for OPTIONS requests
+				w.WriteHeader(http.StatusOK)
+				logx.Infof("OPTIONS request handled with status code: %d", http.StatusOK)
+			} else {
+				next(w, r) // 调用下一个处理函数
+			}
+		}
+	}
+}
+
 func startHttpServer() {
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
 
-	server := rest.MustNewServer(c.RestConf)
+	server := rest.MustNewServer(c.RestConf, rest.WithCors("http://localhost:5173"))
 	defer server.Stop()
 
 	svcCtx := svc.NewServiceContext(c)
+
 	handler.RegisterHandlers(server, svcCtx)
+	// server.Use(customCORS())
 
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)
 	server.Start()

@@ -5,15 +5,15 @@ import (
 	"time"
 
 	"github.com/zeromicro/go-zero/core/logx"
-
 )
 
-func (sc *SceneConfig) Execute(ctx context.Context) {
+func (sc *SceneConfig) Execute(ctx context.Context, executor *ApiExecutor) {
 	errChan := make(chan error)
 	aec := ctx.Value("apirunner").(ApiExecutorContext)
 	execID := aec.ExecID
 	for _, action := range sc.Actions {
-		action.TriggerAc(ctx)
+		logx.Infof("开始执行Action --- %s", action.ActionName)
+		action.TriggerAc(ctx, executor)
 	}
 	select {
 	case <-time.After(time.Duration(sc.Timeout) * time.Second):
@@ -25,5 +25,10 @@ func (sc *SceneConfig) Execute(ctx context.Context) {
 	case <-errChan:
 		// 执行过程中出现错误,做一下处理
 		return
+	default:
+		{
+			return
+		}
 	}
+
 }
