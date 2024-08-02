@@ -39,38 +39,13 @@ func (l *TaskSuccess) Consume(key, val string) error {
 	switch event.EventType {
 	case "task_start":
 		{
-			record := &model.TaskRecord{
-				TaskType:        "api_auto",
-				SceneID:         event.EventMsg.TaskID,
-				RequestID:       event.EventMsg.RequestID,
-				Total:           event.EventMsg.Total,
-				SuccessCount:    0,
-				FailedCount:     0,
-				State:           event.EventMsg.State,
-				ActionRunDetail: []model.ActionRunDetail{},
-				CreateAt:        event.EventMsg.StartAt,
-				UpdateAt:        time.Now(),
-			}
-			err := insertTaskRunRecord(murl, l.svcCtx.Config.Database.Mongo.UseDb, record)
-			if err != nil {
-				return err
-			}
-			runLog := &task_run_model.TaskRunLog{
-				Type:      "scene_create",
-				RequestID: event.EventMsg.RequestID,
-				SceneID:   event.EventMsg.TaskID,
-				StartTime: event.EventMsg.StartAt,
-				Total:     event.EventMsg.Total,
-				UpdateAt:  time.Now(),
-				CreateAt:  time.Now(),
-			}
-
-			if err = insertTaskRunLog(murl, l.svcCtx.Config.Database.Mongo.UseDb, runLog); err != nil {
-				return err
-			}
 			return nil
 		}
-	case "task_update":
+	case "scene_start":
+		{
+			return nil
+		}
+	case "scene_finish":
 		{
 			return nil
 		}
@@ -81,6 +56,9 @@ func (l *TaskSuccess) Consume(key, val string) error {
 	case "action_update":
 		{
 			return nil
+		}
+	case "action_finish":
+		{
 		}
 	case "task_finish":
 		{
