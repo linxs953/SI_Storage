@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"lexa-engine/internal/logic"
 	"mime/multipart"
 	"net/http"
+	"strings"
 
 	"github.com/zeromicro/go-zero/core/logx"
+
+	"lexa-engine/internal/logic"
 )
 
 type FormPayload struct {
@@ -61,7 +63,7 @@ func (hc *HttpClient) SendRequest(req *Request) (resp *http.Response, err error)
 			return hc.postForm(req)
 		}
 		if req.PostType == "x-www-form-urlencoded" {
-			return
+			return hc.postUrlEncoded(req)
 		}
 		return
 	default:
@@ -111,6 +113,46 @@ func (hc *HttpClient) get(reqSpec *Request) (resp *http.Response, err error) {
 	if reqSpec.SetCookies {
 		hc.Cookies = resp.Cookies()
 	}
+	return
+}
+
+func (hc *HttpClient) postUrlEncoded(reqSpec *Request) (resp *http.Response, err error) {
+	payloadString := ""
+	for _, field := range reqSpec.BodyParam {
+		payloadString += fmt.Sprintf("%s=%s&", field.FormName, field.FormValue)
+	}
+	payloadString = strings.TrimRight(payloadString, "&")
+	logx.Error(payloadString)
+	payload := strings.NewReader(payloadString)
+	req, err := http.NewRequest("POST", reqSpec.ReqUrl, payload)
+	if err != nil {
+		logx.Error(err)
+		return
+	}
+
+	req.Header.Add("Client-Type", "PC")
+	req.Header.Add("User-Agent", "Apifox/1.0.0 (https://apifox.com)")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err = hc.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// 状态码不为200
+	if resp.StatusCode != logic.HTTP_OK_STATUS {
+		err = logic.HTTP_STATUS_NOT_200
+		logx.Error(fmt.Sprintf("调用 [%s] 失败, 状态码=[%v]\n", reqSpec.ReqUrl, resp.StatusCode))
+		logx.Error("返回体: ", string(ReadBodyByte(resp)))
+		return
+	}
+
+	// 需要保存cookie
+	if reqSpec.SetCookies {
+		hc.Cookies = resp.Cookies()
+	}
+
 	return
 }
 

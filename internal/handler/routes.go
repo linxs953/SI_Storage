@@ -7,7 +7,7 @@ import (
 	api "lexa-engine/internal/handler/api"
 	cache "lexa-engine/internal/handler/cache"
 	scene "lexa-engine/internal/handler/scene"
-	sync "lexa-engine/internal/handler/sync"
+	syncApi "lexa-engine/internal/handler/syncApi"
 	syncTask "lexa-engine/internal/handler/syncTask"
 	task "lexa-engine/internal/handler/task"
 	tool "lexa-engine/internal/handler/tool"
@@ -31,8 +31,8 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 		[]rest.Route{
 			{
 				Method:  http.MethodPost,
-				Path:    "/apifox",
-				Handler: sync.SyncapiHandler(serverCtx),
+				Path:    "/api",
+				Handler: syncApi.SyncApiHandler(serverCtx),
 			},
 		},
 		rest.WithPrefix("/sync"),

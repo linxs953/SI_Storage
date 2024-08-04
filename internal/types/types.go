@@ -16,6 +16,17 @@ type StartResp struct {
 	Data    interface{} `json:"data"`
 }
 
+type SyncDto struct {
+	Type   string `json:"type"`
+	DocUrl string `json:"docUrl"`
+}
+
+type SyncVO struct {
+	Code    int                    `json:"code"`
+	Message string                 `json:"messsage"`
+	Data    map[string]interface{} `json:"data"`
+}
+
 type GetSceneWithIdDto struct {
 	TaskID string `json:"taskId"`
 }
@@ -212,6 +223,8 @@ type GetSceneData struct {
 	SceneId     string                   `json:"sceneId,omitempty"`
 	SearchKey   string                   `json:"searchKey,omitempty"`
 	Env         string                   `json:"env,omitempty"`
+	Timeout     int                      `json:"timeout,omitempty"`
+	Retry       int                      `json:"retry,omitempty"`
 	Actions     []map[string]interface{} `json:"actions,omitempty"`
 	CreateAt    string                   `json:"createAt,omitempty"`
 	UpdateAt    string                   `json:"updateAt,omitempty"`
@@ -234,10 +247,9 @@ type UpdateSceneDto struct {
 
 type SceneUpdate struct {
 	Scname      string                   `json:"scname"`
-	Author      string                   `json:"author"`
 	Description string                   `json:"description"`
-	Key         string                   `json:"key"`
-	Env         string                   `json:"env"`
+	Timeout     int                      `json:"timeout"`
+	Retry       int                      `json:"retry"`
 	Actions     []map[string]interface{} `json:"actions"`
 }
 

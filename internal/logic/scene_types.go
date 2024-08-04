@@ -87,18 +87,16 @@ type Data struct {
 
 // Scene represents a scenario including actions, results, and webhook details.
 type Scene struct {
-	Description string `json:"description"`
-	SceneName   string `json:"sceneName"`
-	Type        string `json:"type"`
-	Author      string `json:"author"`
-	SceneId     string `json:"sceneId"`
-	SearchKey   string `json:"searchKey"`
-	EnvKey      string `json:"envKey"`
-	// RequestId   string   `json:"requestId"`
-	Actions []Action `json:"actions"`
-	// State   int      `json:"state"`
-	// Result      []Result `json:"result"`
-	// WebHook     WebHook  `json:"webHook"`
+	Description string   `json:"description"`
+	SceneName   string   `json:"sceneName"`
+	Type        string   `json:"type"`
+	Author      string   `json:"author"`
+	SceneId     string   `json:"sceneId"`
+	Retry       int      `json:"retry"`
+	Timeout     int      `json:"timeout"`
+	SearchKey   string   `json:"searchKey"`
+	EnvKey      string   `json:"envKey"`
+	Actions     []Action `json:"actions"`
 }
 
 // Result represents the result of an action within a scene.

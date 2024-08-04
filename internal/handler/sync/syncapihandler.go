@@ -1,14 +1,17 @@
 package sync
 
 import (
-	apisync "lexa-engine/internal/logic/sync"
-	"lexa-engine/internal/logic/syncTask"
-	"lexa-engine/internal/svc"
-	"lexa-engine/internal/types"
 	"net/http"
 
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/rest/httpx"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	apisync "lexa-engine/internal/logic/sync"
+	"lexa-engine/internal/logic/syncTask"
+	"lexa-engine/internal/svc"
+	"lexa-engine/internal/types"
+
 )
 
 func SyncapiHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -34,9 +37,8 @@ func SyncapiHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			if err != nil {
 				return
 			}
-			// logx.Error(rs.ID)
 
-			resp, err := l.Syncapi(&req, rs.ID)
+			resp, err := l.Syncapi(&req, primitive.NewObjectID())
 			if err != nil {
 				httpx.ErrorCtx(r.Context(), w, err)
 			} else {
