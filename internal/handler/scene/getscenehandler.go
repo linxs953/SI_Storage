@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/zeromicro/go-zero/rest/httpx"
+
 	"lexa-engine/internal/logic/scene"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
-
-	"github.com/zeromicro/go-zero/rest/httpx"
 )
 
 func GetSceneHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -73,6 +73,8 @@ func GetSceneHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 					SearchKey:   scene.SearchKey,
 					UpdateAt:    scene.UpdateAt.Format("2006-01-02 15:04:05"),
 					Actions:     actions,
+					Timeout:      scene.Timeout,
+					Retry:       scene.Retry,
 				},
 			}
 			json.NewEncoder(w).Encode(resp)

@@ -1,16 +1,17 @@
-package job
+package sync
 
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/zeromicro/go-zero/core/logx"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
 	"lexa-engine/internal/logic/sync/apitest"
 	synchronizer "lexa-engine/internal/logic/sync/synchronizer"
 	"lexa-engine/internal/model/mongo/apidetail"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
-
-	"github.com/zeromicro/go-zero/core/logx"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type SyncapiLogic struct {

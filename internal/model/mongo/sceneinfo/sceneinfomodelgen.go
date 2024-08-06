@@ -58,7 +58,6 @@ func (m *defaultSceneInfoModel) FindOne(ctx context.Context, id string) (*SceneI
 
 func (m *defaultSceneInfoModel) Update(ctx context.Context, data *SceneInfo) (*mongo.UpdateResult, error) {
 	data.UpdateAt = time.Now()
-
 	res, err := m.conn.UpdateOne(ctx, bson.M{"_id": data.ID}, bson.M{"$set": data})
 	return res, err
 }

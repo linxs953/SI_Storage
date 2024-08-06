@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/zeromicro/go-zero/core/logx"
+
 	"lexa-engine/internal/logic"
 	mong "lexa-engine/internal/model/mongo"
 	"lexa-engine/internal/model/mongo/sceneinfo"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
-
-	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type ModifySceneLogic struct {
@@ -53,15 +53,21 @@ func (l *ModifySceneLogic) ModifyScene(req *types.SceneUpdate, scendId string) (
 	if req.Scname != "" {
 		existScene.SceneName = req.Scname
 	}
-	if req.Key != "" {
-		existScene.SearchKey = req.Key
+	if req.Retry > 0 {
+		existScene.Retry = req.Retry
 	}
-	if req.Author != "" {
-		existScene.Author = req.Author
+	if req.Timeout > 0 {
+		existScene.Timeout = req.Timeout
 	}
-	if req.Env != "" {
-		existScene.EnvKey = req.Env
-	}
+	// if req.Key != "" {
+	// 	existScene.SearchKey = req.Key
+	// }
+	// if req.Author != "" {
+	// 	existScene.Author = req.Author
+	// }
+	// if req.Env != "" {
+	// 	existScene.EnvKey = req.Env
+	// }
 	if len(req.Actions) > 0 {
 		existScene.Actions = actions
 	}

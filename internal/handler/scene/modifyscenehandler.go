@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/zeromicro/go-zero/rest/httpx"
+
 	"lexa-engine/internal/logic/scene"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
-
-	"github.com/zeromicro/go-zero/rest/httpx"
 )
 
 func ModifySceneHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {

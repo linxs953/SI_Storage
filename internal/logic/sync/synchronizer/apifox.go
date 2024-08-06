@@ -18,6 +18,7 @@ import (
 	"lexa-engine/internal/logic/sync/synchronizer/utils"
 	"lexa-engine/internal/model/mongo/apidetail"
 	"lexa-engine/internal/svc"
+
 )
 
 var hc common.HttpClient
@@ -80,7 +81,7 @@ func (afSync *ApiFoxSynchronizer) Store(ctx *svc.ServiceContext, recordId primit
 		}
 		if idx == len(afSync.ApiInfoList)-1 {
 			syncDataEvent.IsEof = true
-			syncDataEvent.UpdateId = recordId
+			// syncDataEvent.UpdateId = recordId
 		}
 		afSync.Hooks = append(afSync.Hooks, syncDataEvent)
 	}
@@ -91,11 +92,15 @@ func (afSync *ApiFoxSynchronizer) Store(ctx *svc.ServiceContext, recordId primit
 			logx.Error("序列化 hook 失败", err)
 			return err
 		}
-
-		if err := ctx.KqPusherClient.Push(string(eventMsg)); err != nil {
+		if _, err := ctx.RedisClient.Rpush("SyncApi", string(eventMsg)); err != nil {
 			logx.Error(err)
 			return err
 		}
+
+		// if err := ctx.KqPusherClient.Push(string(eventMsg)); err != nil {
+		// 	logx.Error(err)
+		// 	return err
+		// }
 	}
 
 	return

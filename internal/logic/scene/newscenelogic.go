@@ -91,6 +91,8 @@ func sceneTempGen(apiIDs []int, sceneName, description, author, mongourl string)
 		Author:      author,
 		Description: description,
 		EnvKey:      "test",
+		Timeout:     10,
+		Retry:       3,
 		SearchKey:   fmt.Sprintf("SC-%s", encodeToBase36(GenerateId())),
 	}
 	actions := []logic.Action{}
