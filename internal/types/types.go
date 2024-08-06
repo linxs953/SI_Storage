@@ -173,6 +173,16 @@ type TDInitResp struct {
 	Message string
 }
 
+type SearchScenesDto struct {
+	Keyword string `json:"keyword"`
+}
+
+type SearchScentVo struct {
+	Code    int                      `json:"code"`
+	Message string                   `json:"message"`
+	Data    []map[string]interface{} `json:"data"`
+}
+
 type GetSceneListDto struct {
 	Page     int `json:"page"`
 	PageSize int `json:"pageSize"`

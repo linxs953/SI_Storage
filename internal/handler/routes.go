@@ -175,6 +175,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/allScenes",
 				Handler: scene.GetSceneListHandler(serverCtx),
 			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/search",
+				Handler: scene.SearchScenesHandler(serverCtx),
+			},
 		},
 		rest.WithPrefix("/scene"),
 	)
