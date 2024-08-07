@@ -1,22 +1,25 @@
 package task
 
 import (
+	"errors"
 	"net/http"
 
-	"github.com/zeromicro/go-zero/rest/httpx"
 	"lexa-engine/internal/logic/task"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
+
+	"github.com/zeromicro/go-zero/rest/httpx"
 )
 
 func GetTaskHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req types.GetTaskDto
-		if err := httpx.Parse(r, &req); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
+
+		req.TaskId = r.URL.Query().Get("taskId")
+		if req.TaskId == "" {
+			httpx.ErrorCtx(r.Context(), w, errors.New("taskId为空"))
 			return
 		}
-
 		l := task.NewGetTaskLogic(r.Context(), svcCtx)
 		resp, err := l.GetTask(&req)
 		if err != nil {
