@@ -67,7 +67,7 @@ func (m *customSceneInfoModel) SearchWithKeyword(ctx context.Context, keyword st
 	var scenes []*SceneInfo
 	var err error
 	v := fmt.Sprintf(".*%s.*", keyword)
-	err = m.conn.Find(ctx, &scenes, bson.M{"scene.sceneName": bson.D{{Key: "$regex", Value: v}}})
+	err = m.conn.Find(ctx, &scenes, bson.M{"scene.scenename": bson.D{{Key: "$regex", Value: v}}})
 	if err != nil {
 		return nil, err
 	}
