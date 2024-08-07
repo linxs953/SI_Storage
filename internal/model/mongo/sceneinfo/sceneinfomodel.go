@@ -2,6 +2,7 @@ package sceneinfo
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/zeromicro/go-zero/core/stores/mon"
 	"go.mongodb.org/mongo-driver/bson"
@@ -15,6 +16,7 @@ type (
 	// and implement the added methods in customSceneInfoModel.
 	SceneInfoModel interface {
 		sceneInfoModel
+		SearchWithKeyword(ctx context.Context, keyword string) ([]*SceneInfo, error)
 		FindOneBySceneID(ctx context.Context, sceneID string) (*SceneInfo, error)
 		FindList(ctx context.Context, page int64, pageSize int64) ([]*SceneInfo, error)
 		DeletBySceneId(ctx context.Context, sceneId string) error
@@ -59,4 +61,15 @@ func (m *customSceneInfoModel) DeletBySceneId(ctx context.Context, sceneId strin
 		return err
 	}
 	return nil
+}
+
+func (m *customSceneInfoModel) SearchWithKeyword(ctx context.Context, keyword string) ([]*SceneInfo, error) {
+	var scenes []*SceneInfo
+	var err error
+	v := fmt.Sprintf(".*%s.*", keyword)
+	err = m.conn.Find(ctx, &scenes, bson.M{"scene.sceneName": bson.D{{Key: "$regex", Value: v}}})
+	if err != nil {
+		return nil, err
+	}
+	return scenes, err
 }
