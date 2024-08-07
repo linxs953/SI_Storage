@@ -1,12 +1,14 @@
 package task
 
 import (
+	"fmt"
 	"net/http"
 
-	"github.com/zeromicro/go-zero/rest/httpx"
 	"lexa-engine/internal/logic/task"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
+
+	"github.com/zeromicro/go-zero/rest/httpx"
 )
 
 func DeleteTaskHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -15,7 +17,7 @@ func DeleteTaskHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 
 		req.TaskId = r.URL.Query().Get("taskId")
 		if req.TaskId == "" {
-			httpx.ErrorCtx(r.Context(), w, http.ErrMissingRequiredValue)
+			httpx.ErrorCtx(r.Context(), w, fmt.Errorf("taskId is empty"))
 			return
 		}
 		l := task.NewDeleteTaskLogic(r.Context(), svcCtx)
