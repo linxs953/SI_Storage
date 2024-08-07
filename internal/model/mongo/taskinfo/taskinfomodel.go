@@ -15,6 +15,7 @@ type (
 	TaskInfoModel interface {
 		taskInfoModel
 		FindByTaskId(ctx context.Context, taskId string) (*TaskInfo, error)
+		DeleteByTaskId(ctx context.Context, taskId string) (int64, error)
 	}
 
 	customTaskInfoModel struct {
@@ -41,4 +42,12 @@ func (m *customTaskInfoModel) FindByTaskId(ctx context.Context, taskId string) (
 	default:
 		return nil, err
 	}
+}
+
+func (m *customTaskInfoModel) DeleteByTaskId(ctx context.Context, taskId string) (int64, error) {
+	count, err := m.conn.DeleteOne(ctx, bson.M{"taskid": taskId})
+	if err != nil {
+		return 0, err
+	}
+	return count, err
 }

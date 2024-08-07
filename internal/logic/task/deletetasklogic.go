@@ -3,6 +3,8 @@ package task
 import (
 	"context"
 
+	mgoutil "lexa-engine/internal/model/mongo"
+	"lexa-engine/internal/model/mongo/taskinfo"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
 
@@ -24,7 +26,17 @@ func NewDeleteTaskLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Delete
 }
 
 func (l *DeleteTaskLogic) DeleteTask(req *types.DeleteTaskDto) (resp *types.DeleteTaskResp, err error) {
-	// todo: add your logic here and delete this line
-
+	resp = &types.DeleteTaskResp{
+		Code:    0,
+		Message: "success",
+	}
+	murl := mgoutil.GetMongoUrl(l.svcCtx.Config.Database.Mongo)
+	taskMod := taskinfo.NewTaskInfoModel(murl, l.svcCtx.Config.Database.Mongo.UseDb, "TaskInfo")
+	_, err = taskMod.DeleteByTaskId(context.Background(), req.TaskId)
+	if err != nil {
+		resp.Code = 1
+		resp.Message = err.Error()
+		return
+	}
 	return
 }
