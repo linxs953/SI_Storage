@@ -2,13 +2,14 @@ package task
 
 import (
 	"context"
+	"encoding/json"
+
+	"github.com/zeromicro/go-zero/core/logx"
 
 	mgoutil "lexa-engine/internal/model/mongo"
 	"lexa-engine/internal/model/mongo/taskinfo"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
-
-	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type GetTaskListLogic struct {
@@ -39,13 +40,20 @@ func (l *GetTaskListLogic) GetTaskList(req *types.GetTaskListDto) (resp *types.G
 		resp.Message = "获取任务列表错误"
 		return
 	}
-	for _, task := range taskList {
-		resp.Data = append(resp.Data, types.TaskInfo{
-			TaskSpec: task,
-			TaskName: task.TaskName,
-			TaskId:   task.TaskID,
-			TaskType: "autoapi",
-		})
+
+	taskBts, err := json.Marshal(taskList)
+	if err != nil {
+		resp.Code = 2
+		resp.Message = "序列化任务列表失败"
+		return
 	}
+	var taskListMap []map[string]interface{}
+	err = json.Unmarshal(taskBts, &taskListMap)
+	if err != nil {
+		resp.Code = 2
+		resp.Message = "映射任务列表失败"
+		return
+	}
+	resp.Data = taskListMap
 	return
 }
