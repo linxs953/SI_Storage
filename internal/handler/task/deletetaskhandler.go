@@ -12,11 +12,12 @@ import (
 func DeleteTaskHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req types.DeleteTaskDto
-		if err := httpx.Parse(r, &req); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
+
+		req.TaskId = r.URL.Query().Get("taskId")
+		if req.TaskId == "" {
+			httpx.ErrorCtx(r.Context(), w, http.ErrMissingRequiredValue)
 			return
 		}
-
 		l := task.NewDeleteTaskLogic(r.Context(), svcCtx)
 		resp, err := l.DeleteTask(&req)
 		if err != nil {
