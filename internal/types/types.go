@@ -69,9 +69,14 @@ type RunResp struct {
 }
 
 type CreateTaskDto struct {
-	TaskName  string   `json:"taskName"`
-	TaskType  string   `json:"taskType"`
-	SceneList []string `json:"sceneList"`
+	TaskName  string       `json:"taskName"`
+	Author    string       `json:"author"`
+	SceneList []SceneCount `json:"sceneList"`
+}
+
+type SceneCount struct {
+	SceneId string `json:"sceneId"`
+	Count   int    `json:"count"`
 }
 
 type CreateTaskResp struct {
@@ -119,9 +124,9 @@ type GetTaskListDto struct {
 }
 
 type GetTaskListResp struct {
-	Code    int        `json:"code"`
-	Message string     `json:"messsage"`
-	Data    []TaskInfo `json:"data"`
+	Code    int                      `json:"code"`
+	Message string                   `json:"messsage"`
+	Data    []map[string]interface{} `json:"data"`
 }
 
 type RunTaskDto struct {
