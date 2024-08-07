@@ -14,6 +14,7 @@ type (
 	// and implement the added methods in customTaskInfoModel.
 	TaskInfoModel interface {
 		taskInfoModel
+		FindAllTask(ctx context.Context) ([]*TaskInfo, error)
 		FindByTaskId(ctx context.Context, taskId string) (*TaskInfo, error)
 		DeleteByTaskId(ctx context.Context, taskId string) (int64, error)
 	}
@@ -50,4 +51,12 @@ func (m *customTaskInfoModel) DeleteByTaskId(ctx context.Context, taskId string)
 		return 0, err
 	}
 	return count, err
+}
+
+func (m *customTaskInfoModel) FindAllTask(ctx context.Context) (tasks []*TaskInfo, err error) {
+	err = m.conn.Find(ctx, &tasks, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	return
 }
