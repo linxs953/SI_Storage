@@ -52,6 +52,8 @@ type Action struct {
 	Request      ActionRequest
 	Output       ActionOutput
 	Expect       ActionExpect
+	Before       []Hook
+	After        []Hook
 }
 
 type ActionExpect struct {

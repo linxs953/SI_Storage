@@ -411,3 +411,21 @@ func (ac *Action) expectResp(respFields map[string]interface{}) error {
 	// }
 	return nil
 }
+
+func (ac *Action) beforeAction() error {
+	for _, hook := range ac.Before {
+		if err := hook.Run(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (ac *Action) afterAction() error {
+	for _, hook := range ac.After {
+		if err := hook.Run(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
