@@ -19,6 +19,10 @@ import (
 func (ac *Action) TriggerAc(ctx context.Context, executore *ApiExecutor) error {
 	ac.validate()
 	ac.processActionDepend(executore)
+	if err := ac.beforeAction(); err != nil {
+		logx.Error(err)
+		return err
+	}
 	logx.Error("开始发送请求")
 	resp, err := ac.sendRequest(ctx)
 	if err != nil {
@@ -38,6 +42,10 @@ func (ac *Action) TriggerAc(ctx context.Context, executore *ApiExecutor) error {
 
 	result := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(bodyStr), &result); err != nil {
+		logx.Error(err)
+		return err
+	}
+	if err := ac.afterAction(); err != nil {
 		logx.Error(err)
 		return err
 	}
