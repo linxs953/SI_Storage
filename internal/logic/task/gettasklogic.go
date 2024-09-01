@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-
 	mgoutil "lexa-engine/internal/model/mongo"
 	"lexa-engine/internal/model/mongo/taskinfo"
 	"lexa-engine/internal/svc"
@@ -40,10 +39,13 @@ func (l *GetTaskLogic) GetTask(req *types.GetTaskDto) (resp *types.GetTaskResp, 
 		return
 	}
 	resp.Data = types.TaskInfo{
-		TaskId:   taskInfo.TaskID,
-		TaskName: taskInfo.TaskName,
-		TaskType: "autoapi",
-		TaskSpec: taskInfo.Scenes,
+		TaskId:     taskInfo.TaskID,
+		TaskName:   taskInfo.TaskName,
+		Author:     taskInfo.Author,
+		TaskType:   "autoapi",
+		TaskSpec:   taskInfo.Scenes,
+		CreateTime: taskInfo.CreateAt.Format("2006-01-02 15:04:05"),
+		UpdateTime: taskInfo.UpdateAt.Format("2006-01-02 15:04:05"),
 	}
 	return
 }

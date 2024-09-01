@@ -10,7 +10,6 @@ import (
 	syncApi "lexa-engine/internal/handler/syncApi"
 	syncTask "lexa-engine/internal/handler/syncTask"
 	task "lexa-engine/internal/handler/task"
-	tool "lexa-engine/internal/handler/tool"
 	"lexa-engine/internal/svc"
 
 	"github.com/zeromicro/go-zero/rest"
@@ -63,17 +62,6 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 		[]rest.Route{
 			{
 				Method:  http.MethodGet,
-				Path:    "/orderVerify",
-				Handler: tool.OrderVerifyHandler(serverCtx),
-			},
-		},
-		rest.WithPrefix("/tool"),
-	)
-
-	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
 				Path:    "/getSceneWithId",
 				Handler: task.GetSceneWithIdHandler(serverCtx),
 			},
@@ -114,27 +102,6 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 		},
 		rest.WithPrefix("/task"),
-	)
-
-	server.AddRoutes(
-		[]rest.Route{
-			{
-				Method:  http.MethodGet,
-				Path:    "/:apiId/getApiDetail",
-				Handler: api.GetApiDetailHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/getApiList",
-				Handler: api.GetApiListHandler(serverCtx),
-			},
-			{
-				Method:  http.MethodGet,
-				Path:    "/searchApi",
-				Handler: api.SearchApiHandler(serverCtx),
-			},
-		},
-		rest.WithPrefix("/api"),
 	)
 
 	server.AddRoutes(
@@ -182,5 +149,26 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 		},
 		rest.WithPrefix("/scene"),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/:apiId/getApiDetail",
+				Handler: api.GetApiDetailHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/getApiList",
+				Handler: api.GetApiListHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/searchApi",
+				Handler: api.SearchApiHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/api"),
 	)
 }
