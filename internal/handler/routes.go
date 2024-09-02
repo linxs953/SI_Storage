@@ -4,7 +4,7 @@ package handler
 import (
 	"net/http"
 
-	api "lexa-engine/internal/handler/api"
+	api "lexa-engine/internal/handler/apiInfo"
 	cache "lexa-engine/internal/handler/cache"
 	scene "lexa-engine/internal/handler/scene"
 	syncApi "lexa-engine/internal/handler/syncApi"

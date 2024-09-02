@@ -1,4 +1,4 @@
-package api
+package apiInfo
 
 import (
 	"context"

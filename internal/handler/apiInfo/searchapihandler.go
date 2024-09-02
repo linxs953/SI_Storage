@@ -1,9 +1,9 @@
-package api
+package apiInfo
 
 import (
 	"net/http"
 
-	"lexa-engine/internal/logic/api"
+	api "lexa-engine/internal/logic/apiInfo"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
 
