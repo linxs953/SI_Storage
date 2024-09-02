@@ -3,6 +3,12 @@ package scene
 import (
 	"context"
 	"fmt"
+	"lexa-engine/internal/logic"
+	mong "lexa-engine/internal/model/mongo"
+	"lexa-engine/internal/model/mongo/apidetail"
+	"lexa-engine/internal/model/mongo/sceneinfo"
+	"lexa-engine/internal/svc"
+	"lexa-engine/internal/types"
 	"math/big"
 	"strconv"
 	"strings"
@@ -12,13 +18,6 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"gopkg.in/yaml.v2"
-
-	"lexa-engine/internal/logic"
-	mong "lexa-engine/internal/model/mongo"
-	"lexa-engine/internal/model/mongo/apidetail"
-	"lexa-engine/internal/model/mongo/sceneinfo"
-	"lexa-engine/internal/svc"
-	"lexa-engine/internal/types"
 )
 
 type NewSceneLogic struct {
@@ -134,7 +133,7 @@ func sceneTempGen(apiIDs []int, sceneName, description, author, mongourl string)
 
 		if apid.ApiAuthType == "2" {
 			refer := logic.Refer{
-				Type:     "header",
+				Type:     "headers",
 				DataType: "string",
 				Target:   "Authorization",
 			}
@@ -205,6 +204,21 @@ func sceneTempGen(apiIDs []int, sceneName, description, author, mongourl string)
 		if apid.ApiHeaders != nil {
 			for _, header := range apid.ApiHeaders {
 				action.Headers[header.HeaderName] = strings.ReplaceAll(header.HeaderValue, " ", "")
+			}
+		}
+
+		if apid.ApiHeaders != nil {
+			for _, header := range apid.ApiHeaders {
+				var refer logic.Refer
+				refer.DataType = "string"
+				refer.Type = "headers"
+				refer.Target = header.HeaderName
+				action.Dependency = append(action.Dependency, logic.Dependency{
+					Refer:     refer,
+					DataKey:   header.HeaderValue,
+					ActionKey: "",
+					Type:      "3",
+				})
 			}
 		}
 

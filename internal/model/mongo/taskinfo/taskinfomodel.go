@@ -34,7 +34,7 @@ func NewTaskInfoModel(url, db, collection string) TaskInfoModel {
 
 func (m *customTaskInfoModel) FindByTaskId(ctx context.Context, taskId string) (*TaskInfo, error) {
 	var resp TaskInfo
-	err := m.conn.FindOne(ctx, &resp, bson.M{"taskid": taskId})
+	err := m.conn.FindOne(ctx, &resp, bson.M{"taskId": taskId})
 	switch err {
 	case nil:
 		return &resp, nil

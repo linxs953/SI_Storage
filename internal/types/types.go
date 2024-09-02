@@ -54,10 +54,13 @@ type GetPreActionsResp struct {
 }
 
 type TaskInfo struct {
-	TaskId   string      `json:"taskId"`
-	TaskName string      `json:"taskName"`
-	TaskType string      `json:"taskType"`
-	TaskSpec interface{} `json:"taskSpec"`
+	TaskId     string      `json:"taskId"`
+	TaskName   string      `json:"taskName"`
+	Author     string      `json:"author"`
+	TaskType   string      `json:"taskType"`
+	TaskSpec   interface{} `json:"taskSpec"`
+	CreateTime string      `json:"createTime"`
+	UpdateTime string      `json:"updateTime"`
 }
 
 type RunResp struct {
@@ -86,10 +89,23 @@ type CreateTaskResp struct {
 }
 
 type UpdateTaskDto struct {
-	TaskId   string `json:"taskId"`
-	TaskName string `json:"taskName"`
-	TaskType string `json:"taskType"`
-	TaskSpec string `json:"taskSpec"`
+	TaskId   string        `json:"taskId"`
+	TaskName string        `json:"taskName"`
+	TaskType string        `json:"taskType"`
+	Author   string        `json:"author"`
+	TaskSpec []SceneInTask `json:"taskSpec"`
+}
+
+type SceneInTask struct {
+	SceneId     string                   `json:"sceneId"`
+	SceneName   string                   `json:"sceneName"`
+	Description string                   `json:"description"`
+	Author      string                   `json:"author"`
+	Retry       int                      `json:"retry"`
+	SearchKey   string                   `json:"searchKey"`
+	EnvKey      string                   `json:"envKey"`
+	Timeout     int                      `json:"timeout"`
+	Actions     []map[string]interface{} `json:"actions"`
 }
 
 type UpdateTaskResp struct {
@@ -137,40 +153,6 @@ type RunTaskResp struct {
 	Code    int     `json:"code"`
 	Message string  `json:"messsage"`
 	Data    RunResp `json:"data"`
-}
-
-type ApiDetailDto struct {
-	ApiId string `path:"apiId"`
-}
-
-type ApiListDto struct {
-	PageNum  int `query:"pageNum"`
-	PageSize int `query:"pageSize"`
-}
-
-type ApiDetailResp struct {
-	Code    int                    `json:"code"`
-	Message string                 `json:"messsage"`
-	Data    map[string]interface{} `json:"data"`
-}
-
-type ApiListResp struct {
-	Code        int                      `json:"code"`
-	Message     string                   `json:"messsage"`
-	Total       int                      `json:"total"`
-	CurrentPage int                      `json:"currentPage"`
-	TotalNum    int                      `json:"totalNum"`
-	Data        []map[string]interface{} `json:"data"`
-}
-
-type ApiSearchResp struct {
-	Code    int                      `json:"code"`
-	Message string                   `json:"messsage"`
-	Data    []map[string]interface{} `json:"data"`
-}
-
-type SearchDto struct {
-	Keyword string `query:"keyword"`
 }
 
 type TDInitResp struct {
@@ -272,4 +254,38 @@ type UpdateSceneVO struct {
 	Code    int          `json:"code"`
 	Message string       `json:"message"`
 	Data    GetSceneData `json:"data,omitempty"`
+}
+
+type ApiDetailDto struct {
+	ApiId string `path:"apiId"`
+}
+
+type ApiListDto struct {
+	PageNum  int `query:"pageNum"`
+	PageSize int `query:"pageSize"`
+}
+
+type ApiDetailResp struct {
+	Code    int                    `json:"code"`
+	Message string                 `json:"messsage"`
+	Data    map[string]interface{} `json:"data"`
+}
+
+type ApiListResp struct {
+	Code        int                      `json:"code"`
+	Message     string                   `json:"messsage"`
+	Total       int                      `json:"total"`
+	CurrentPage int                      `json:"currentPage"`
+	TotalNum    int                      `json:"totalNum"`
+	Data        []map[string]interface{} `json:"data"`
+}
+
+type ApiSearchResp struct {
+	Code    int                      `json:"code"`
+	Message string                   `json:"messsage"`
+	Data    []map[string]interface{} `json:"data"`
+}
+
+type SearchDto struct {
+	Keyword string `query:"keyword"`
 }
