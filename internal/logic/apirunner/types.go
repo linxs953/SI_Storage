@@ -128,6 +128,28 @@ type ApiExecutorContext struct {
 	Fetch  FetchDepend
 }
 
+type RunFlowLog struct {
+	// scene / action / task
+	LogType string `json:"log_type"`
+
+	// type=scene, 存储sceneID
+	// type=action, 存储actionID
+	// type=task, 存储taskID
+	EventId string `json:"event_id"`
+
+	// 任务实例化ID
+	RunId string `json:"run_id"`
+
+	// 日志触发节点
+	TriggerNode string `json:"trigger_node"`
+
+	// 日志的内容, 如果有错误，拿到Error外层的Message
+	Message string `json:"message"`
+
+	// 存储根因
+	RootErr error `json:"rootErr;omitempty"`
+}
+
 func NewApiExecutor(scenes []*SceneConfig) (*ApiExecutor, error) {
 	client := &http.Client{}
 	return &ApiExecutor{
