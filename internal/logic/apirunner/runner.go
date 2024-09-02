@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/redis"
 )
@@ -220,9 +221,10 @@ func (runner *ApiExecutor) fetchWithRedis(rdsClient *redis.Redis, key string, da
 func (runner *ApiExecutor) Run(ctx context.Context, rdsClient *redis.Redis) {
 	runner.Initialize(rdsClient)
 	ctx = context.WithValue(ctx, "apirunner", ApiExecutorContext{
-		ExecID: uuid.New().String(),
-		Store:  runner.StoreActionResult,
-		Fetch:  runner.FetchDependency,
+		ExecID:   uuid.New().String(),
+		Store:    runner.StoreActionResult,
+		Fetch:    runner.FetchDependency,
+		WriteLog: runner.WriteLog,
 	})
 	logx.Info("执行器初始化完成")
 	for _, scene := range runner.Cases {
@@ -293,5 +295,18 @@ func (runner *ApiExecutor) StoreActionResult(actionKey string, respFields map[st
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
 	runner.Result[key] = respFields
+	return nil
+}
+
+func (runner *ApiExecutor) WriteLog(logType, eventId, trigger_node, message string, err error) error {
+	logObject := RunFlowLog{
+		RunId:       runner.ExecID,
+		EventId:     eventId,
+		LogType:     logType,
+		TriggerNode: trigger_node,
+		Message:     message,
+		RootErr:     errors.Unwrap(err),
+	}
+	runner.LogSet = append(runner.LogSet, logObject)
 	return nil
 }

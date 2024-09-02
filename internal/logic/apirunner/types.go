@@ -10,6 +10,8 @@ import (
 
 type StoreAction func(actionKey string, respFields map[string]interface{}) error
 
+type WriteLogFunc func(logType string, eventId string, trigger_node string, message string, err error) error
+
 type FetchDepend func(key string) map[string]interface{}
 
 type ApiExecutor struct {
@@ -23,6 +25,7 @@ type ApiExecutor struct {
 	ActionSceneMap map[string]string
 	mu             sync.RWMutex // 添加读写锁
 	Result         map[string]map[string]interface{}
+	LogSet         []RunFlowLog
 }
 
 type ExecutorConf struct {
@@ -123,9 +126,10 @@ type Refer struct {
 }
 
 type ApiExecutorContext struct {
-	ExecID string
-	Store  StoreAction
-	Fetch  FetchDepend
+	ExecID   string
+	Store    StoreAction
+	Fetch    FetchDepend
+	WriteLog WriteLogFunc
 }
 
 type RunFlowLog struct {
@@ -157,5 +161,6 @@ func NewApiExecutor(scenes []*SceneConfig) (*ApiExecutor, error) {
 		ExecID: uuid.New().String(),
 		Cases:  scenes,
 		Result: make(map[string]map[string]interface{}),
+		LogSet: make([]RunFlowLog, 0),
 	}, nil
 }

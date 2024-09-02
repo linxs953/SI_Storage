@@ -17,16 +17,27 @@ import (
 )
 
 func (ac *Action) TriggerAc(ctx context.Context, executore *ApiExecutor) error {
-	ac.validate()
-	ac.processActionDepend(executore)
+	var err error
+	aec := ctx.Value("apirunner").(ApiExecutorContext)
+	writeLogFunc := aec.WriteLog
+	storeResultToExecutor := aec.Store
+	if err = ac.validate(); err != nil {
+		writeLogFunc("Action", ac.ActionID, "Action_Validate", err.Error(), err)
+		return err
+	}
+	if err = ac.processActionDepend(executore); err != nil {
+		writeLogFunc("Action", ac.ActionID, "Action_Process_Depend", err.Error(), err)
+		return err
+	}
 	if err := ac.beforeAction(); err != nil {
-		logx.Error(err)
+		writeLogFunc("Action", ac.ActionID, "Action_Before_Hook", err.Error(), err)
 		return err
 	}
 	logx.Error("开始发送请求")
 	resp, err := ac.sendRequest(ctx)
 	if err != nil {
-		logx.Error(err)
+		writeLogFunc("Action", ac.ActionID, "Action_SendRequest", err.Error(), err)
+		return err
 	}
 	defer resp.Body.Close()
 
@@ -34,7 +45,7 @@ func (ac *Action) TriggerAc(ctx context.Context, executore *ApiExecutor) error {
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, resp.Body)
 	if err != nil {
-		logx.Error(err)
+		writeLogFunc("Action", ac.ActionID, "Action_ReadResponse", err.Error(), err)
 		return err
 	}
 	bodyStr := buf.String()
@@ -42,15 +53,30 @@ func (ac *Action) TriggerAc(ctx context.Context, executore *ApiExecutor) error {
 
 	result := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(bodyStr), &result); err != nil {
-		logx.Error(err)
-		return err
-	}
-	if err := ac.afterAction(); err != nil {
-		logx.Error(err)
+		writeLogFunc("Action", ac.ActionID, "Action_Transform_Response", err.Error(), err)
 		return err
 	}
 
-	ac.store(ctx, executore, fmt.Sprintf("%s.%s", ac.SceneID, ac.ActionID), result)
+	if err := ac.afterAction(); err != nil {
+		writeLogFunc("Action", ac.ActionID, "Action_After_Hook", err.Error(), err)
+		return err
+	}
+
+	if err = ac.expectResp(result); err != nil {
+		writeLogFunc("Action", ac.ActionID, "Action_Expect", err.Error(), err)
+		return err
+	}
+
+	// if err = ac.store(ctx, executore, fmt.Sprintf("%s.%s", ac.SceneID, ac.ActionID), result); err != nil {
+	// 	writeLogFunc("Action", ac.ActionID, "Action_Ouput_Store", err.Error(), err)
+	// 	return err
+	// }
+
+	if err = storeResultToExecutor(fmt.Sprintf("%s.%s", ac.SceneID, ac.ActionID), result); err != nil {
+		writeLogFunc("Action", ac.ActionID, "Action_Ouput_Store", err.Error(), err)
+		return err
+	}
+
 	return nil
 }
 
@@ -204,44 +230,6 @@ func (ac *Action) processActionDepend(executor *ApiExecutor) error {
 	// }
 	return err
 }
-
-// func (ac *Action) ParameterizeAction(fetch FetchDepend) error {
-// 	var err error
-// 	for _, dp := range ac.Request.Dependency {
-// 		actionResp := fetch(dp.ActionKey)
-// 		value, ok := actionResp[dp.DataKey]
-// 		if !ok {
-// 			err = fmt.Errorf("获取 Action 结果失败, datakey=%s", dp.DataKey)
-// 			return err
-// 		}
-// 		key := strings.Split(string(dp.Refer.Target), ".")[1]
-// 		if dp.Refer.Type == "header" {
-// 			valueStr := value.(string)
-// 			ac.Request.Headers[key] = valueStr
-// 		}
-// 		if dp.Refer.Type == "path" {
-// 			valueStr := value.(string)
-// 			ac.Request.Path = strings.ReplaceAll(ac.Request.Path, fmt.Sprintf("$%s", key), valueStr)
-// 		}
-// 		if dp.Refer.Type == "payload" {
-// 			switch dp.Refer.DataType {
-// 			case "string":
-// 				valueStr := value.(string)
-// 				ac.Request.Payload[key] = valueStr
-// 			case "int":
-// 				valueInt := value.(int)
-// 				ac.Request.Payload[key] = valueInt
-// 			case "map":
-// 				valueMap := value.(map[string]interface{})
-// 				ac.Request.Payload[key] = valueMap
-// 			case "array":
-// 				valueArr := value.([]interface{})
-// 				ac.Request.Payload[key] = valueArr
-// 			}
-// 		}
-// 	}
-// 	return err
-// }
 
 func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 	client := &http.Client{
@@ -436,4 +424,9 @@ func (ac *Action) afterAction() error {
 		}
 	}
 	return nil
+}
+
+func (ac *Action) storeLog(runErr error) (err error) {
+
+	return err
 }
