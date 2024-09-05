@@ -14,6 +14,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"lexa-engine/internal/logic/apirunner"
+	mgoutil "lexa-engine/internal/model/mongo"
+	"lexa-engine/internal/model/mongo/taskinfo"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
 )
@@ -290,6 +292,143 @@ func unMarshalTask() (*Scene, error) {
 	return &scene, nil
 }
 
+func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.ApiExecutor, error) {
+	var executor *apirunner.ApiExecutor
+	murl := mgoutil.GetMongoUrl(l.svcCtx.Config.Database.Mongo)
+	taskMod := taskinfo.NewTaskInfoModel(murl, l.svcCtx.Config.Database.Mongo.UseDb, "TaskInfo")
+	taskInfo, err := taskMod.FindByTaskId(context.Background(), taskId)
+	if err != nil {
+		return nil, err
+	}
+	// 转换taskInfo.Scenes类型为 SceneConfig
+	scenes := make([]*apirunner.SceneConfig, 0)
+	for _, scene := range taskInfo.Scenes {
+		sceneConfig := apirunner.SceneConfig{
+			Description: scene.Description,
+			Author:      scene.Author,
+			SceneID:     scene.SceneId,
+			Total:       len(scene.Actions),
+			Timeout:     scene.Timeout,
+			Retry:       scene.Retry,
+		}
+
+		// 构建动作配置
+		actions := make([]apirunner.Action, 0)
+		for _, action := range scene.Actions {
+			// 构建Action dependency
+			actionDepends := make([]apirunner.ActionDepend, 0)
+			for _, dep := range action.Dependency {
+				ad := apirunner.ActionDepend{
+					Type:      dep.Type,
+					ActionKey: dep.ActionKey,
+					DataKey:   dep.DataKey,
+					Refer: apirunner.Refer{
+						DataType: dep.Refer.DataType,
+						Target:   dep.Refer.Target,
+						Type:     dep.Refer.Type,
+					},
+				}
+				actionDepends = append(actionDepends, ad)
+			}
+
+			// 根据dependency构建Params
+			actionParams := make(map[string]string)
+
+			// 根据dependency 构建 payload
+			actionPayload := make(map[string]interface{})
+
+			for _, dep := range actionDepends {
+				var valRefer string
+				switch dep.Type {
+				case "1":
+					{
+						// 数据源=场景
+						valRefer = fmt.Sprintf("$%s.%s", dep.ActionKey, dep.DataKey)
+						break
+					}
+				case "2":
+					{
+						// 数据源=基础数据
+						if dep.ActionKey != "" {
+							valRefer = fmt.Sprintf("%s.%s", dep.ActionKey, dep.DataKey)
+						} else {
+							valRefer = fmt.Sprintf(dep.DataKey)
+						}
+						break
+					}
+				case "3":
+					{
+						// 数据源=自定义值
+						valRefer = dep.DataKey
+						break
+					}
+				case "4":
+					{
+						// 数据源=事件
+						valRefer = dep.DataKey
+						break
+					}
+				default:
+					{
+						break
+					}
+				}
+				// 考虑到字符串是一个对象，在前端配置的时候，传过来的是一个具体参数化的值
+				// e.g
+				// 1. 传递的值=$scid.acid.data.token, 后续执行读取scid.acid的返回值，解析出token字段进行赋值
+				// 2. 传递的值={"goods":"$scid.acid.data.token"}, 执行时读取scid.acid的返回值，解析出token字段的值，给字符串中的某个字段赋值
+				if dep.Refer.Type == "params" {
+					actionParams[dep.Refer.Target] = valRefer
+				}
+				if dep.Refer.Type == "payload" {
+					actionPayload[dep.Refer.Target] = valRefer
+				}
+
+				if dep.Refer.Type == "header" {
+					action.Headers[dep.Refer.Target] = valRefer
+				}
+
+				if dep.Refer.Type == "path" {
+					pathId := dep.Refer.Target
+					pathValue := valRefer
+					// 替换actionPath 中的参数
+					action.ActionPath = strings.Replace(action.ActionPath, fmt.Sprintf("{%s}", pathId), pathValue, -1)
+				}
+			}
+
+			actionConfig := apirunner.Action{
+				SceneID:    scene.SceneId,
+				ApiID:      fmt.Sprintf("%d", action.RelateId),
+				ActionID:   action.ActionID,
+				ActionName: action.ActionName,
+				Conf: apirunner.ActionConf{
+					Retry:   action.Retry,
+					Timeout: action.Timeout,
+				},
+				Request: apirunner.ActionRequest{
+					Dependency: actionDepends,
+					Domain:     action.DomainKey,
+					Method:     action.ActionMethod,
+					Path:       action.ActionPath,
+					Payload:    actionPayload,
+					Params:     actionParams,
+					Headers:    action.Headers,
+					HasRetry:   0,
+				},
+				Output: apirunner.ActionOutput{
+					ActionID: action.ActionID,
+					Key:      action.Output.Key,
+				},
+				Expect: apirunner.ActionExpect{},
+			}
+			actions = append(actions, actionConfig)
+		}
+		sceneConfig.Actions = actions
+		scenes = append(scenes, &sceneConfig)
+	}
+	executor, err = apirunner.NewApiExecutor(scenes)
+	return executor, err
+}
 func buildApiExecutor(filename string) (*apirunner.ApiExecutor, error) {
 	yamlFile, err := os.ReadFile(filename)
 	if err != nil {
