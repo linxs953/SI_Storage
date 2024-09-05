@@ -45,13 +45,6 @@ type Output struct {
 	Key string `json:"key"`
 }
 
-// Meta represents metadata of an action output.
-type EventBody struct {
-	FieldName  string `json:"fieldName"`
-	FieldValue string `json:"fieldValue"`
-	DataType   string `json:"dataType"`
-}
-
 // Expect defines the expected outcomes of an action.
 type Expect struct {
 	Sql Sql   `json:"sql"`
