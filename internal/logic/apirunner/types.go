@@ -39,6 +39,7 @@ type SceneConfig struct {
 	Total       int
 	Author      string
 	Timeout     int
+	Retry       int
 	Actions     []Action
 }
 
