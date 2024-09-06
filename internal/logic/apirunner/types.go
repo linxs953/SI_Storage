@@ -63,7 +63,7 @@ type Action struct {
 type ActionExpect struct {
 	ActionID  string
 	ApiExpect []ApiExpect
-	SqlExpect []SQLExpect
+	SqlExpect SQLExpect
 }
 
 type ApiExpect struct {
@@ -86,10 +86,11 @@ type Verify struct {
 }
 
 type ActionOutput struct {
+	ExecID   string
+	SceneID  string
 	ActionID string
-	// 标识一个 Action 的输出唯一码
-	Key string
-	// 标识输出结果, 把 response 解包
+
+	// 存储action的结果
 	Value map[string]interface{}
 }
 
@@ -157,9 +158,19 @@ type RunFlowLog struct {
 
 func NewApiExecutor(scenes []*SceneConfig) (*ApiExecutor, error) {
 	client := &http.Client{}
+	execID := uuid.New().String()
+	for sidx, scene := range scenes {
+		// 生成实例化后的SceneID
+		scenes[sidx].SceneID = uuid.New().String()
+		for aidx, _ := range scene.Actions {
+			// 生成实例化的ActionID
+			scenes[sidx].Actions[aidx].ActionID = uuid.New().String()
+			scenes[sidx].Actions[aidx].Output.ExecID = execID
+		}
+	}
 	return &ApiExecutor{
 		Client: *client,
-		ExecID: uuid.New().String(),
+		ExecID: execID,
 		Cases:  scenes,
 		Result: make(map[string]map[string]interface{}),
 		LogSet: make([]RunFlowLog, 0),
