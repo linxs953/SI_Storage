@@ -19,57 +19,167 @@ func (runner *ApiExecutor) Initialize(rdsClient *redis.Redis) {
 	runner.parametrization(rdsClient)
 }
 
+// 处理每个Action的参数化
 func (runner *ApiExecutor) parametrization(rdsClient *redis.Redis) error {
 	var err error
-	for sdx, scene := range runner.Cases {
-		for adx, action := range scene.Actions {
-			currentRefer := action.CurrentRefer
-			// 处理payload
-			for field, value := range action.Request.Payload {
-				valueStr := value.(string)
-				referExpressList, data := runner.proccessRefer(rdsClient, `\$[^ ]*`, currentRefer, valueStr)
-				if len(referExpressList) > 0 {
-					for _, referExpress := range referExpressList {
-						runner.Cases[sdx].Actions[adx].Request.Payload[field] = data[referExpress]
+	// for sdx, scene := range runner.Cases {
+	// 	for adx, action := range scene.Actions {
+	// 		currentRefer := action.CurrentRefer
+	// 		// 处理payload
+	// 		for field, value := range action.Request.Payload {
+	// 			valueStr := value.(string)
+	// 			referExpressList, data := runner.proccessRefer(rdsClient, `\$[^ ]*`, currentRefer, valueStr)
+	// 			if len(referExpressList) > 0 {
+	// 				for _, referExpress := range referExpressList {
+	// 					runner.Cases[sdx].Actions[adx].Request.Payload[field] = data[referExpress]
+	// 				}
+	// 			}
+	// 		}
+
+	// 		//  处理path
+	// 		referExpressList, data := runner.proccessRefer(rdsClient, `\$(\w+(\.\w+|\:\w+)+)`, action.Request.Path, currentRefer)
+	// 		if len(referExpressList) > 0 {
+	// 			for _, referExpress := range referExpressList {
+	// 				apiPath := runner.Cases[sdx].Actions[adx].Request.Path
+	// 				runner.Cases[sdx].Actions[adx].Request.Path = strings.Replace(apiPath, referExpress, data[referExpress], -1)
+	// 			}
+	// 		}
+
+	// 		// 处理query
+	// 		for field, value := range action.Request.Params {
+	// 			referExpressList, data := runner.proccessRefer(rdsClient, `\$(\w+(\.\w+|\:\w+)+)`, value, currentRefer)
+	// 			if len(referExpressList) > 0 {
+	// 				for _, referExpress := range referExpressList {
+	// 					fieldValue := runner.Cases[sdx].Actions[adx].Request.Params[field]
+	// 					runner.Cases[sdx].Actions[adx].Request.Params[field] = strings.Replace(fieldValue, referExpress, data[referExpress], -1)
+	// 				}
+	// 			}
+	// 		}
+
+	// 		// 处理headers
+	// 		for key, value := range action.Request.Headers {
+	// 			referExpressList, data := runner.proccessRefer(rdsClient, `\$(\w+(\.\w+|\:\w+)+)`, currentRefer, value)
+	// 			if len(referExpressList) > 0 {
+	// 				for _, referExpress := range referExpressList {
+	// 					headervalue := runner.Cases[sdx].Actions[adx].Request.Headers[key]
+	// 					logx.Errorf("header value: %s", headervalue)
+	// 					runner.Cases[sdx].Actions[adx].Request.Headers[key] = strings.Replace(headervalue, referExpress, data[referExpress], -1)
+	// 					logx.Errorf("header value: %s", runner.Cases[sdx].Actions[adx].Request.Headers[key])
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	for _, scene := range runner.Cases {
+		for _, action := range scene.Actions {
+			for _, depend := range action.Request.Dependency {
+				if depend.Refer.Type == "headers" {
+					// 处理headers 的依赖,
+					if depend.Type == "1" {
+						// 数据源=场景，替换成真正的引用表达式，在运行时替换成真正的值
+						action.Request.Headers[depend.Refer.Target] = runner.handleSceneRefer(depend)
 					}
-				}
-			}
 
-			//  处理path
-			referExpressList, data := runner.proccessRefer(rdsClient, `\$(\w+(\.\w+|\:\w+)+)`, action.Request.Path, currentRefer)
-			if len(referExpressList) > 0 {
-				for _, referExpress := range referExpressList {
-					apiPath := runner.Cases[sdx].Actions[adx].Request.Path
-					runner.Cases[sdx].Actions[adx].Request.Path = strings.Replace(apiPath, referExpress, data[referExpress], -1)
-				}
-			}
-
-			// 处理query
-			for field, value := range action.Request.Params {
-				referExpressList, data := runner.proccessRefer(rdsClient, `\$(\w+(\.\w+|\:\w+)+)`, value, currentRefer)
-				if len(referExpressList) > 0 {
-					for _, referExpress := range referExpressList {
-						fieldValue := runner.Cases[sdx].Actions[adx].Request.Params[field]
-						runner.Cases[sdx].Actions[adx].Request.Params[field] = strings.Replace(fieldValue, referExpress, data[referExpress], -1)
+					if depend.Type == "2" {
+						// 数据源=基础数据(Redis)，获取redis数据进行填充
+						action.Request.Headers[depend.Refer.Target] = runner.handleBasicRefer(rdsClient, depend)
 					}
-				}
-			}
 
-			// 处理headers
-			for key, value := range action.Request.Headers {
-				referExpressList, data := runner.proccessRefer(rdsClient, `\$(\w+(\.\w+|\:\w+)+)`, currentRefer, value)
-				if len(referExpressList) > 0 {
-					for _, referExpress := range referExpressList {
-						headervalue := runner.Cases[sdx].Actions[adx].Request.Headers[key]
-						logx.Errorf("header value: %s", headervalue)
-						runner.Cases[sdx].Actions[adx].Request.Headers[key] = strings.Replace(headervalue, referExpress, data[referExpress], -1)
-						logx.Errorf("header value: %s", runner.Cases[sdx].Actions[adx].Request.Headers[key])
+					if depend.Type == "3" {
+						// 数据源=自定义, 直接覆盖原有值
+						action.Request.Headers[depend.Refer.Target] = depend.DataKey
 					}
 				}
 			}
 		}
 	}
 	return err
+}
+
+func (runner *ApiExecutor) handleSceneRefer(depend ActionDepend) (value string) {
+	// 数据源不是场景，不处理
+	if depend.Type != "1" {
+		return
+	}
+
+	return
+}
+
+func (runner *ApiExecutor) handleBasicRefer(rdsClient *redis.Redis, depend ActionDepend) (value string) {
+	// 数据源不是基础数据，不处理
+	if depend.Type != "2" {
+		return
+	}
+	logx.Error(depend)
+	value, err := runner.fetchDataWithRedis(rdsClient, "list", depend.ActionKey, depend.DataKey)
+	_ = err
+	return
+}
+
+func (runner *ApiExecutor) fetchDataWithRedis(rdsClient *redis.Redis, resultType, key string, dataKey string) (string, error) {
+	/*
+		仅支持获取list和string类型的基础数据
+		1. 根据dataKey获取数据，第一个字段是数字，获取list类型数据
+		2. 不是数字，直接通过key获取string类型数据
+		3. 遍历剩下的dataKey引用字段
+		   - 把1和2获取的数据解析成map
+		   - 根据dataKey引用字段，从map中获取对应的值
+	*/
+	if key == "" {
+		// 键名为空，直接返回
+		return "", errors.New("redis key为空")
+	}
+
+	if dataKey == "" {
+		// 说明不是数组，直接按字符串获取
+		value, err := rdsClient.GetCtx(context.Background(), key)
+		return value, err
+	}
+
+	var value interface{}
+
+	dataKeyParts := strings.Split(dataKey, ".")
+
+	// 判断第一个元素是否是数字
+	if i, err := strconv.Atoi(dataKeyParts[0]); err == nil {
+		// 是数字，说明是数组，直接取数组中的值
+		value, err = rdsClient.Lindex(key, int64(i))
+		if err != nil {
+			return "", err
+		}
+	} else {
+		value, err = rdsClient.Get(key)
+	}
+
+	// 尝试转换value成map[string]string
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(value.(string)), &data); err != nil {
+		return "", err
+	}
+
+	// 遍历dataParts，从data中获取对应的值
+	for idx, key := range dataKeyParts {
+		if idx == 0 {
+			continue
+		}
+		if _, ok := data[key]; !ok {
+			return "", errors.New("数据不存在")
+		}
+		newDataMap := make(map[string]interface{})
+		if idx < len(dataKeyParts)-1 {
+			// 需要继续提取，需要继续构造map
+			if err := json.Unmarshal([]byte(data[key].(string)), &newDataMap); err != nil {
+				return "", err
+			}
+			data = newDataMap
+			continue
+		}
+		// 能运行到这里，表明是最后一个key
+		value = data[key]
+	}
+
+	return value.(string), nil
 }
 
 // 处理数据源依赖
@@ -227,11 +337,11 @@ func (runner *ApiExecutor) Run(ctx context.Context, rdsClient *redis.Redis) {
 		WriteLog: runner.WriteLog,
 	})
 	logx.Info("执行器初始化完成")
-	for _, scene := range runner.Cases {
-		logx.Infof("开始执行场景 --%s", scene.Description)
-		logx.Error(scene)
-		go scene.Execute(ctx, runner)
-	}
+	// for _, scene := range runner.Cases {
+	// 	logx.Infof("开始执行场景 --%s", scene.Description)
+	// 	logx.Error(scene)
+	// 	go scene.Execute(ctx, runner)
+	// }
 }
 
 func (runner *ApiExecutor) FetchDependency(key string) map[string]interface{} {

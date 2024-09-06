@@ -235,14 +235,20 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 	}
 
 	// 构建执行器
+	exector, err := l.buildApiExecutorWithTaskId(req.TaskId)
+	// exector, err := buildApiExecutor("./demo.yaml")
 
-	exector, err := buildApiExecutor("./demo.yaml")
 	if err != nil {
 		return nil, err
 	}
+	exectorBts, err := json.Marshal(exector.Cases)
+	if err != nil {
+		logx.Error(err)
+	}
+	logx.Error(string(exectorBts))
+
 	exector.Run(context.Background(), l.svcCtx.RedisClient)
-	ab, _ := json.Marshal(exector.Cases[0].Actions)
-	logx.Error(string(ab))
+
 	return &types.RunTaskResp{
 		Code:    0,
 		Message: "success",
@@ -252,33 +258,6 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 			State:   0,
 		},
 	}, nil
-
-	// 尝试解析任务
-	// var scene *Scene
-	// if scene, err = unMarshalTask(); err != nil {
-	// 	// 增加更详细的错误日志
-	// 	logx.Errorf("解析任务失败, req.TaskID: %v, err: %v", req.TaskId, err)
-	// 	return
-	// }
-
-	// // 启动任务，并捕获可能的异常
-	// if err = l.StartTask(scene); err != nil {
-	// 	// 记录启动任务失败的日志
-	// 	logx.Errorf("启动任务失败, scene.ID: %v, err: %v", scene.RequestId, err)
-	// 	return
-	// }
-
-	// return &types.RunTaskResp{
-	// 	Code:    0,
-	// 	Message: "success",
-	// 	Data: types.RunResp{
-	// 		Message:  "已触发任务",
-	// 		RunId:    scene.RequestId,
-	// 		TaskId:   scene.SceneId,
-	// 		TaskSpec: scene,
-	// 		State:    0,
-	// 	},
-	// }, nil
 }
 
 func unMarshalTask() (*Scene, error) {
@@ -396,6 +375,31 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 				}
 			}
 
+			// 构建Action Expect
+			apiExpects := make([]apirunner.ApiExpect, 0)
+			for _, expect := range action.Expect.Api {
+				apiExpects = append(apiExpects, apirunner.ApiExpect{
+					DataType:  expect.Data.Type,
+					Desire:    expect.Data.Desire,
+					FieldName: expect.Data.Name,
+					Operation: expect.Data.Operation,
+					Type:      expect.Type,
+				})
+			}
+
+			sqlVerify := make([]apirunner.Verify, 0)
+			for _, expect := range action.Expect.Sql.Verify {
+				sqlVerify = append(sqlVerify, apirunner.Verify{
+					FieldName:  expect.Field,
+					FieldValue: expect.Value,
+				})
+			}
+			sqlExpects := apirunner.SQLExpect{
+				SQLClase: action.Expect.Sql.Sql,
+				Table:    action.Expect.Sql.Table,
+				Verify:   sqlVerify,
+			}
+
 			actionConfig := apirunner.Action{
 				SceneID:    scene.SceneId,
 				ApiID:      fmt.Sprintf("%d", action.RelateId),
@@ -416,10 +420,15 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 					HasRetry:   0,
 				},
 				Output: apirunner.ActionOutput{
+					ExecID:   "",
+					SceneID:  scene.SceneId,
 					ActionID: action.ActionID,
-					Key:      action.Output.Key,
+					Value:    map[string]interface{}{},
 				},
-				Expect: apirunner.ActionExpect{},
+				Expect: apirunner.ActionExpect{
+					ApiExpect: apiExpects,
+					SqlExpect: sqlExpects,
+				},
 			}
 			actions = append(actions, actionConfig)
 		}
@@ -610,7 +619,7 @@ func buildApiExecutor(filename string) (*apirunner.ApiExecutor, error) {
 		// 处理 action 输出
 		output := apirunner.ActionOutput{
 			ActionID: a.ActionID,
-			Key:      fmt.Sprintf("%s.%s", sceneId, a.ActionID),
+			// Key:      fmt.Sprintf("%s.%s", sceneId, a.ActionID),
 		}
 
 		action := apirunner.Action{
