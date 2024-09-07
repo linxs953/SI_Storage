@@ -260,16 +260,16 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 	}, nil
 }
 
-func unMarshalTask() (*Scene, error) {
-	jsonString := `{"description":"创建订单","type":"1","author":"linxs","sceneId":"100300424","requestId":"实例化id","actions":[{"actionName":"账号密码登录","relateId":100300424,"dependency":[{"type":"upstream","eventName":"订阅的事件名称","refer":[{"field":"$eventData.$token","match":"$auth","location":"payload / path / query / header"}]}],"output":[{"event":"action finish 事件","meta":[{"fieldName":"response字段名","fieldValue":"response字段值","dataType":"字段类型"}]}],"expect":{"sql":{"sql":"select * from psu_order","table":"psu_order","verify":[{"field":"表字段名, $table_alias.$field","value":"字段值"}]},"api":[{"type":"field / api","data":{"name":"statusCode","operation":"eq","type":"int","desire":0}},{"type":"field","data":{"name":"$.msg","operation":"eq","type":"string","desire":"操作成功"}}]}}]}`
-	var scene Scene
-	err := json.Unmarshal([]byte(jsonString), &scene)
-	if err != nil {
-		logx.Error("Error:", err)
-		return nil, err
-	}
-	return &scene, nil
-}
+// func unMarshalTask() (*Scene, error) {
+// 	jsonString := `{"description":"创建订单","type":"1","author":"linxs","sceneId":"100300424","requestId":"实例化id","actions":[{"actionName":"账号密码登录","relateId":100300424,"dependency":[{"type":"upstream","eventName":"订阅的事件名称","refer":[{"field":"$eventData.$token","match":"$auth","location":"payload / path / query / header"}]}],"output":[{"event":"action finish 事件","meta":[{"fieldName":"response字段名","fieldValue":"response字段值","dataType":"字段类型"}]}],"expect":{"sql":{"sql":"select * from psu_order","table":"psu_order","verify":[{"field":"表字段名, $table_alias.$field","value":"字段值"}]},"api":[{"type":"field / api","data":{"name":"statusCode","operation":"eq","type":"int","desire":0}},{"type":"field","data":{"name":"$.msg","operation":"eq","type":"string","desire":"操作成功"}}]}}]}`
+// 	var scene Scene
+// 	err := json.Unmarshal([]byte(jsonString), &scene)
+// 	if err != nil {
+// 		logx.Error("Error:", err)
+// 		return nil, err
+// 	}
+// 	return &scene, nil
+// }
 
 func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.ApiExecutor, error) {
 	var executor *apirunner.ApiExecutor
@@ -294,6 +294,7 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 		// 构建动作配置
 		actions := make([]apirunner.Action, 0)
 		for _, action := range scene.Actions {
+
 			// 构建Action dependency
 			actionDepends := make([]apirunner.ActionDepend, 0)
 			for _, dep := range action.Dependency {
@@ -438,6 +439,7 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 	executor, err = apirunner.NewApiExecutor(scenes)
 	return executor, err
 }
+
 func buildApiExecutor(filename string) (*apirunner.ApiExecutor, error) {
 	yamlFile, err := os.ReadFile(filename)
 	if err != nil {
@@ -666,7 +668,7 @@ func buildApiExecutor(filename string) (*apirunner.ApiExecutor, error) {
 	}
 	executor.SceneMap = sceneMap
 	executor.ActionSceneMap = actionSceneMap
-	executor.PreActionsMap = preActionsMap
+	// executor.PreActionsMap = preActionsMap
 	executor.ActionMap = actionMap
 	return executor, nil
 }

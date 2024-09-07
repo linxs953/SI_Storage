@@ -2,6 +2,7 @@ package apirunner
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +22,7 @@ type ApiExecutor struct {
 	Cases          []*SceneConfig
 	SceneMap       map[string]string
 	ActionMap      map[string]string
-	PreActionsMap  map[string]string
+	PreActionsMap  map[string][]string
 	ActionSceneMap map[string]string
 	mu             sync.RWMutex // 添加读写锁
 	Result         map[string]map[string]interface{}
@@ -159,20 +160,30 @@ type RunFlowLog struct {
 func NewApiExecutor(scenes []*SceneConfig) (*ApiExecutor, error) {
 	client := &http.Client{}
 	execID := uuid.New().String()
+	preActionMap := make(map[string][]string)
+	sceneActionMap := make(map[string]string)
 	for sidx, scene := range scenes {
 		// 生成实例化后的SceneID
 		scenes[sidx].SceneID = uuid.New().String()
-		for aidx, _ := range scene.Actions {
+		var preActions []string
+		for aidx, action := range scene.Actions {
 			// 生成实例化的ActionID
 			scenes[sidx].Actions[aidx].ActionID = uuid.New().String()
 			scenes[sidx].Actions[aidx].Output.ExecID = execID
+
+			// 这里把preActions重新构建新对象
+			preActionMap[action.ActionID] = strings.Split(strings.Join(preActions, ","), ",")
+			preActions = append(preActions, action.ActionID)
+			sceneActionMap[action.ActionID] = scene.SceneID
 		}
 	}
 	return &ApiExecutor{
-		Client: *client,
-		ExecID: execID,
-		Cases:  scenes,
-		Result: make(map[string]map[string]interface{}),
-		LogSet: make([]RunFlowLog, 0),
+		Client:         *client,
+		ExecID:         execID,
+		Cases:          scenes,
+		Result:         make(map[string]map[string]interface{}),
+		LogSet:         make([]RunFlowLog, 0),
+		ActionSceneMap: sceneActionMap,
+		PreActionsMap:  preActionMap,
 	}, nil
 }

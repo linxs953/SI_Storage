@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,8 +14,11 @@ import (
 	"github.com/zeromicro/go-zero/core/stores/redis"
 )
 
-func (runner *ApiExecutor) Initialize(rdsClient *redis.Redis) {
-	runner.parametrization(rdsClient)
+func (runner *ApiExecutor) Initialize(rdsClient *redis.Redis) error {
+	if err := runner.parametrization(rdsClient); err != nil {
+		return err
+	}
+	return nil
 }
 
 // 处理每个Action的参数化
@@ -74,22 +76,17 @@ func (runner *ApiExecutor) parametrization(rdsClient *redis.Redis) error {
 	for _, scene := range runner.Cases {
 		for _, action := range scene.Actions {
 			for _, depend := range action.Request.Dependency {
-				if depend.Refer.Type == "headers" {
-					// 处理headers 的依赖,
-					if depend.Type == "1" {
-						// 数据源=场景，替换成真正的引用表达式，在运行时替换成真正的值
-						action.Request.Headers[depend.Refer.Target] = runner.handleSceneRefer(depend)
-					}
-
-					if depend.Type == "2" {
-						// 数据源=基础数据(Redis)，获取redis数据进行填充
-						action.Request.Headers[depend.Refer.Target] = runner.handleBasicRefer(rdsClient, depend)
-					}
-
-					if depend.Type == "3" {
-						// 数据源=自定义, 直接覆盖原有值
-						action.Request.Headers[depend.Refer.Target] = depend.DataKey
-					}
+				if err := runner.filledHeader(depend, &action, rdsClient); err != nil {
+					return errors.Wrap(err, "headers参数化失败")
+				}
+				if err := runner.filledPayload(depend, &action, rdsClient); err != nil {
+					return errors.Wrap(err, "payload参数化失败")
+				}
+				if err := runner.filledPath(depend, &action, rdsClient); err != nil {
+					return errors.Wrap(err, "path参数化失败")
+				}
+				if err := runner.filledQuery(depend, &action, rdsClient); err != nil {
+					return errors.Wrap(err, "query参数化失败")
 				}
 			}
 		}
@@ -97,23 +94,208 @@ func (runner *ApiExecutor) parametrization(rdsClient *redis.Redis) error {
 	return err
 }
 
-func (runner *ApiExecutor) handleSceneRefer(depend ActionDepend) (value string) {
-	// 数据源不是场景，不处理
-	if depend.Type != "1" {
-		return
+func (runner *ApiExecutor) filledHeader(depend ActionDepend, action *Action, rdsClient *redis.Redis) error {
+	var err error
+	if depend.Refer.Type == "headers" {
+		if err = runner.handleActionRefer(depend, action, rdsClient, "headers"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (runner *ApiExecutor) filledPayload(depend ActionDepend, action *Action, rdsClient *redis.Redis) error {
+	var err error
+	if depend.Refer.Type == "payload" {
+		if err = runner.handleActionRefer(depend, action, rdsClient, "payload"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (runner *ApiExecutor) filledPath(depend ActionDepend, action *Action, rdsClient *redis.Redis) error {
+	var err error
+	if depend.Refer.Type == "path" {
+		if err = runner.handleActionRefer(depend, action, rdsClient, "path"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (runner *ApiExecutor) filledQuery(depend ActionDepend, action *Action, rdsClient *redis.Redis) error {
+	var err error
+	if depend.Refer.Type == "params" {
+		if err = runner.handleActionRefer(depend, action, rdsClient, "query"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// 处理数据源的获取
+func (runner *ApiExecutor) handleActionRefer(depend ActionDepend, action *Action, rdsClient *redis.Redis, referType string) (err error) {
+	setPayloadData := func(payload map[string]interface{}, key string, value interface{}) (map[string]interface{}, error) {
+		parts := strings.Split(key, ".")
+		data := payload
+		for idx, part := range parts {
+			if idx == len(parts)-1 {
+				data[part] = value
+			} else {
+				if next, ok := data[part]; ok {
+					if nextMap, ok := next.(map[string]interface{}); ok {
+						data = nextMap
+					} else {
+						return nil, fmt.Errorf("key '%s' already exists but is not a map", key)
+					}
+				} else {
+					return nil, fmt.Errorf("key '%s' not exist", key)
+
+				}
+			}
+		}
+		newPayload := payload
+		return newPayload, nil
 	}
 
+	if depend.Type == "1" {
+		// 数据源=场景，验证依赖引用关系是否合法
+		err = runner.handleSceneRefer(depend, action)
+		if err != nil {
+			return err
+		}
+	}
+
+	if depend.Type == "2" {
+		// 数据源=基础数据(Redis)，获取redis数据进行填充
+		val, err := runner.handleBasicRefer(rdsClient, depend)
+		if err != nil {
+			return err
+		}
+
+		switch referType {
+		case "headers":
+			{
+				action.Request.Headers[depend.Refer.Target] = val
+				break
+			}
+		case "payload":
+			{
+				newPayload, err := setPayloadData(action.Request.Payload, depend.Refer.Target, val)
+				if err != nil {
+					return err
+				}
+				action.Request.Payload = newPayload
+				break
+			}
+		case "path":
+			{
+				action.Request.Path = strings.Replace(action.Request.Path, depend.Refer.Target, val, -1)
+				break
+			}
+		case "query":
+			{
+				action.Request.Params[depend.Refer.Target] = val
+				break
+			}
+		}
+	}
+
+	if depend.Type == "3" {
+		// 数据源=自定义, 直接覆盖原有值
+		switch referType {
+		case "headers":
+			{
+				action.Request.Headers[depend.Refer.Target] = depend.DataKey
+				break
+			}
+		case "payload":
+			{
+				newPayload, err := setPayloadData(action.Request.Payload, depend.Refer.Target, depend.DataKey)
+				if err != nil {
+					return err
+				}
+				action.Request.Payload = newPayload
+				break
+			}
+		case "path":
+			{
+				action.Request.Path = strings.Replace(action.Request.Path, depend.Refer.Target, depend.DataKey, -1)
+				break
+			}
+		case "query":
+			{
+				action.Request.Params[depend.Refer.Target] = depend.DataKey
+				break
+			}
+		}
+	}
+
+	if depend.Type == "4" {
+		// 数据源=事件
+		_, err = runner.handleEventRefer(depend)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (runner *ApiExecutor) handleSceneRefer(depend ActionDepend, action *Action) (err error) {
+	// 在任务创建或者编辑之后，场景依赖关系已经生成，这个方法主要是验证引用关系是否正常
+	// 1. 场景引用表达式： [sceneInstanceId].[actionInstanceId]
+	// 2. dataKey照旧，不做处理
+	if depend.Type != "1" {
+		return errors.New("依赖的数据源不是场景")
+	}
+
+	relateData := strings.Split(depend.ActionKey, ".")
+
+	if len(relateData) == 0 || len(relateData) == 1 {
+		return errors.New("ActionKey invaild")
+	}
+
+	relateScene := relateData[0]
+	if relateScene == "" {
+		return errors.New("依赖关联的场景为空")
+	}
+
+	relateAction := relateData[1]
+	if relateAction == "" {
+		return errors.New("依赖关联的Action为空")
+	}
+
+	// 检测对应的scene 和 action是否存在
+	if _, ok := runner.SceneMap[relateScene]; !ok {
+		return errors.New("依赖关联的场景不存在")
+	}
+
+	if _, ok := runner.ActionMap[relateAction]; !ok {
+		return errors.New("依赖关联的Action不存在")
+	}
+
+	if runner.ActionSceneMap[relateAction] == runner.ActionSceneMap[action.ActionID] {
+		// 引用的action和当前action同属同个场景
+		preAction := runner.PreActionsMap[action.ActionID]
+		for pidx, pre := range preAction {
+			if pre != relateAction && pidx == len(preAction)-1 {
+				return errors.New("依赖Action 不在当前Action的前置列表中")
+			}
+		}
+	}
+
+	// 引用关系验证成功
 	return
 }
 
-func (runner *ApiExecutor) handleBasicRefer(rdsClient *redis.Redis, depend ActionDepend) (value string) {
+func (runner *ApiExecutor) handleBasicRefer(rdsClient *redis.Redis, depend ActionDepend) (value string, err error) {
 	// 数据源不是基础数据，不处理
 	if depend.Type != "2" {
 		return
 	}
 	logx.Error(depend)
-	value, err := runner.fetchDataWithRedis(rdsClient, "list", depend.ActionKey, depend.DataKey)
-	_ = err
+	value, err = runner.fetchDataWithRedis(rdsClient, "list", depend.ActionKey, depend.DataKey)
 	return
 }
 
@@ -182,7 +364,122 @@ func (runner *ApiExecutor) fetchDataWithRedis(rdsClient *redis.Redis, resultType
 	return value.(string), nil
 }
 
-// 处理数据源依赖
+func (runner *ApiExecutor) handleEventRefer(depend ActionDepend) (value string, err error) {
+	if depend.Type != "4" {
+		return
+	}
+	return
+}
+
+func (runner *ApiExecutor) Run(ctx context.Context, rdsClient *redis.Redis) {
+	if err := runner.Initialize(rdsClient); err != nil {
+		logx.Error(err)
+		causeErr := errors.Cause(err)
+		runner.WriteLog("Executor_Initialize", runner.ExecID, "Executor_Initialize", causeErr.Error(), err)
+		return
+	}
+	ctx = context.WithValue(ctx, "apirunner", ApiExecutorContext{
+		ExecID:   uuid.New().String(),
+		Store:    runner.StoreActionResult,
+		Fetch:    runner.FetchDependency,
+		WriteLog: runner.WriteLog,
+	})
+	logx.Info("执行器初始化完成")
+	// for _, scene := range runner.Cases {
+	// 	logx.Infof("开始执行场景 --%s", scene.Description)
+	// 	logx.Error(scene)
+	// 	go scene.Execute(ctx, runner)
+	// }
+}
+
+func (runner *ApiExecutor) FetchDependency(key string) map[string]interface{} {
+	// 确保在函数开始就锁定，并在函数结束时释放，即使发生panic
+	defer runner.mu.RUnlock()
+	runner.mu.RLock()
+	if result, ok := runner.Result[key]; ok {
+		return result
+	}
+
+	// 使用context来控制超时，避免死锁
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // 假设最大超时时间为10秒
+	defer cancel()
+
+	ticker := time.NewTicker(5 * time.Second) // 初始化ticker，每次间隔5秒
+	defer ticker.Stop()
+
+	retryCount := 0
+	const initialDelay = 1 * time.Second // 初始重试延迟
+	const maxDelay = 5 * time.Second     // 重试延迟的最大值
+
+	for {
+		select {
+		default:
+			// 为了减少锁的竞争，仅在需要时加锁
+			runner.mu.RLock()
+			defer runner.mu.RUnlock()
+
+			if result, ok := runner.Result[key]; ok {
+				// 如果找到依赖项，返回结果
+				return result
+			}
+
+			// 重试逻辑
+			retryCount++
+			if retryCount > runner.Conf.Retry {
+				// 达到最大重试次数，记录日志
+				logx.Errorf("FetchDependency: Max retries reached, dependency with key %s not fetched.", key)
+				return make(map[string]interface{})
+			}
+
+			delay := initialDelay << uint(retryCount-1)
+			if delay > maxDelay {
+				delay = maxDelay
+			}
+			time.Sleep(delay)
+
+		case <-ctx.Done():
+			// 优化错误日志，包含更多上下文信息
+			logx.Errorf("FetchDependency: Timeout reached, dependency with key %s not fetched.", key)
+			return make(map[string]interface{}) // 返回空map而不是nil
+		}
+	}
+}
+
+func (runner *ApiExecutor) StoreActionResult(actionKey string, respFields map[string]interface{}) error {
+	if actionKey == "" || respFields == nil {
+		return fmt.Errorf("actionKey cannot be empty and respFields must not be nil")
+	}
+	key := fmt.Sprintf("%s.%s", runner.ExecID, actionKey)
+	runner.mu.Lock()
+	defer func() {
+		// 确保在发生 panic 时解锁
+		defer runner.mu.Unlock()
+
+		if r := recover(); r != nil {
+			fmt.Printf("Recovered in StoreActionResult: %v\n", r)
+			return
+		}
+	}()
+	runner.Result[key] = respFields
+	return nil
+}
+
+func (runner *ApiExecutor) WriteLog(logType, eventId, trigger_node, message string, err error) error {
+	logObject := RunFlowLog{
+		RunId:       runner.ExecID,
+		EventId:     eventId,
+		LogType:     logType,
+		TriggerNode: trigger_node,
+		Message:     message,
+		RootErr:     errors.Unwrap(err),
+	}
+	runner.LogSet = append(runner.LogSet, logObject)
+	return nil
+}
+
+/*
+暂时废弃
+
 func (runner *ApiExecutor) proccessRefer(rdsClient *redis.Redis, expression string, currentRefer string, value string) ([]string, map[string]string) {
 	re := regexp.MustCompile(expression)
 	matches := re.FindAllStringSubmatch(value, -1)
@@ -328,95 +625,4 @@ func (runner *ApiExecutor) fetchWithRedis(rdsClient *redis.Redis, key string, da
 	return eleMap[dkParts[1]], err
 }
 
-func (runner *ApiExecutor) Run(ctx context.Context, rdsClient *redis.Redis) {
-	runner.Initialize(rdsClient)
-	ctx = context.WithValue(ctx, "apirunner", ApiExecutorContext{
-		ExecID:   uuid.New().String(),
-		Store:    runner.StoreActionResult,
-		Fetch:    runner.FetchDependency,
-		WriteLog: runner.WriteLog,
-	})
-	logx.Info("执行器初始化完成")
-	// for _, scene := range runner.Cases {
-	// 	logx.Infof("开始执行场景 --%s", scene.Description)
-	// 	logx.Error(scene)
-	// 	go scene.Execute(ctx, runner)
-	// }
-}
-
-func (runner *ApiExecutor) FetchDependency(key string) map[string]interface{} {
-	// 确保在函数开始就锁定，并在函数结束时释放，即使发生panic
-	defer runner.mu.RUnlock()
-	runner.mu.RLock()
-	if result, ok := runner.Result[key]; ok {
-		return result
-	}
-
-	// 使用context来控制超时，避免死锁
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // 假设最大超时时间为10秒
-	defer cancel()
-
-	ticker := time.NewTicker(5 * time.Second) // 初始化ticker，每次间隔5秒
-	defer ticker.Stop()
-
-	retryCount := 0
-	const initialDelay = 1 * time.Second // 初始重试延迟
-	const maxDelay = 5 * time.Second     // 重试延迟的最大值
-
-	for {
-		select {
-		default:
-			// 为了减少锁的竞争，仅在需要时加锁
-			runner.mu.RLock()
-			defer runner.mu.RUnlock()
-
-			if result, ok := runner.Result[key]; ok {
-				// 如果找到依赖项，返回结果
-				return result
-			}
-
-			// 重试逻辑
-			retryCount++
-			if retryCount > runner.Conf.Retry {
-				// 达到最大重试次数，记录日志
-				logx.Errorf("FetchDependency: Max retries reached, dependency with key %s not fetched.", key)
-				return make(map[string]interface{})
-			}
-
-			delay := initialDelay << uint(retryCount-1)
-			if delay > maxDelay {
-				delay = maxDelay
-			}
-			time.Sleep(delay)
-
-		case <-ctx.Done():
-			// 优化错误日志，包含更多上下文信息
-			logx.Errorf("FetchDependency: Timeout reached, dependency with key %s not fetched.", key)
-			return make(map[string]interface{}) // 返回空map而不是nil
-		}
-	}
-}
-
-func (runner *ApiExecutor) StoreActionResult(actionKey string, respFields map[string]interface{}) error {
-	if actionKey == "" || respFields == nil {
-		return fmt.Errorf("actionKey cannot be empty and respFields must not be nil")
-	}
-	key := fmt.Sprintf("%s.%s", runner.ExecID, actionKey)
-	runner.mu.Lock()
-	defer runner.mu.Unlock()
-	runner.Result[key] = respFields
-	return nil
-}
-
-func (runner *ApiExecutor) WriteLog(logType, eventId, trigger_node, message string, err error) error {
-	logObject := RunFlowLog{
-		RunId:       runner.ExecID,
-		EventId:     eventId,
-		LogType:     logType,
-		TriggerNode: trigger_node,
-		Message:     message,
-		RootErr:     errors.Unwrap(err),
-	}
-	runner.LogSet = append(runner.LogSet, logObject)
-	return nil
-}
+*/
