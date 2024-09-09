@@ -45,6 +45,8 @@ func (l *CreateTaskLogic) CreateTask(req *types.CreateTaskDto) (resp *types.Crea
 		}
 		for i := 0; i < sid.Count; i++ {
 			scene.SceneName = fmt.Sprintf("%s-%d", scene.SceneName, i+1)
+			// 实例化多个scene时，每个示例需要重新生成一个sceneId
+			scene.SceneId = uuid.New().String()
 			taskRecord.Scenes = append(taskRecord.Scenes, scene.Scene)
 		}
 	}

@@ -162,19 +162,24 @@ func NewApiExecutor(scenes []*SceneConfig) (*ApiExecutor, error) {
 	execID := uuid.New().String()
 	preActionMap := make(map[string][]string)
 	sceneActionMap := make(map[string]string)
+	sceneMap := make(map[string]string)
+	actionMap := make(map[string]string)
 	for sidx, scene := range scenes {
 		// 生成实例化后的SceneID
-		scenes[sidx].SceneID = uuid.New().String()
+		// scenes[sidx].SceneID = uuid.New().String()
 		var preActions []string
+		sceneMap[scene.SceneID] = scene.Description
 		for aidx, action := range scene.Actions {
 			// 生成实例化的ActionID
-			scenes[sidx].Actions[aidx].ActionID = uuid.New().String()
+			// scenes[sidx].Actions[aidx].ActionID = uuid.New().String()
 			scenes[sidx].Actions[aidx].Output.ExecID = execID
 
 			// 这里把preActions重新构建新对象
 			preActionMap[action.ActionID] = strings.Split(strings.Join(preActions, ","), ",")
 			preActions = append(preActions, action.ActionID)
 			sceneActionMap[action.ActionID] = scene.SceneID
+			actionMap[action.ActionID] = action.ActionName
+
 		}
 	}
 	return &ApiExecutor{
@@ -185,5 +190,7 @@ func NewApiExecutor(scenes []*SceneConfig) (*ApiExecutor, error) {
 		LogSet:         make([]RunFlowLog, 0),
 		ActionSceneMap: sceneActionMap,
 		PreActionsMap:  preActionMap,
+		SceneMap:       sceneMap,
+		ActionMap:      actionMap,
 	}, nil
 }
