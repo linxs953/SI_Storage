@@ -46,7 +46,7 @@ func (m *customTaskInfoModel) FindByTaskId(ctx context.Context, taskId string) (
 }
 
 func (m *customTaskInfoModel) DeleteByTaskId(ctx context.Context, taskId string) (int64, error) {
-	count, err := m.conn.DeleteOne(ctx, bson.M{"taskid": taskId})
+	count, err := m.conn.DeleteOne(ctx, bson.M{"taskId": taskId})
 	if err != nil {
 		return 0, err
 	}
