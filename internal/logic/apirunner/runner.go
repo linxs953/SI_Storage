@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/redis"
@@ -378,71 +377,91 @@ func (runner *ApiExecutor) Run(ctx context.Context, rdsClient *redis.Redis) {
 		runner.WriteLog("Executor_Initialize", runner.ExecID, "Executor_Initialize", causeErr.Error(), err)
 		return
 	}
+	// execID := uuid.New().String()
 	ctx = context.WithValue(ctx, "apirunner", ApiExecutorContext{
-		ExecID:   uuid.New().String(),
-		Store:    runner.StoreActionResult,
-		Fetch:    runner.FetchDependency,
+		ExecID: runner.ExecID,
+
+		// Store:    runner.StoreActionResult,
+		// Fetch:    runner.FetchDependency,
+		Result:   &runner.Result,
 		WriteLog: runner.WriteLog,
 	})
 	logx.Info("执行器初始化完成")
-	// for _, scene := range runner.Cases {
-	// 	logx.Infof("开始执行场景 --%s", scene.Description)
-	// 	logx.Error(scene)
-	// 	go scene.Execute(ctx, runner)
-	// }
+	logx.Infof("开始执行任务 [%s]", runner.ExecID)
+	for _, scene := range runner.Cases {
+		logx.Infof("开始执行场景 %s--%s", scene.SceneID, scene.Description)
+		go scene.Execute(ctx, runner)
+		// break
+	}
 }
 
 func (runner *ApiExecutor) FetchDependency(key string) map[string]interface{} {
 	// 确保在函数开始就锁定，并在函数结束时释放，即使发生panic
-	defer runner.mu.RUnlock()
-	runner.mu.RLock()
-	if result, ok := runner.Result[key]; ok {
-		return result
+	logx.Errorf("FetchDependency: %s", key)
+	// logx.Error(runner.Result.Load(key))
+	if result, ok := runner.Result.Load(key); ok {
+		logx.Infof("成功获取依赖数据,key=%s, value=%v", key, result)
+		return result.(map[string]interface{})
+	}
+	logx.Errorf("未找到依赖数据,key=%s", key)
+	// runner.mu.RLock()
+	// defer runner.mu.RUnlock()
+	retryCount := 0
+	for {
+		if retryCount > runner.Conf.Retry {
+			logx.Errorf("FetchDependency: Max retries reached, dependency with key %s not fetched.", key)
+			return make(map[string]interface{})
+		}
+		if result, ok := runner.Result.Load(key); ok {
+			return result.(map[string]interface{})
+		}
+		time.Sleep(20 * time.Second)
+		retryCount++
 	}
 
 	// 使用context来控制超时，避免死锁
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // 假设最大超时时间为10秒
-	defer cancel()
+	// ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second) // 假设最大超时时间为10秒
+	// defer cancel()
 
-	ticker := time.NewTicker(5 * time.Second) // 初始化ticker，每次间隔5秒
-	defer ticker.Stop()
+	// ticker := time.NewTicker(5 * time.Second) // 初始化ticker，每次间隔5秒
+	// defer ticker.Stop()
 
-	retryCount := 0
-	const initialDelay = 1 * time.Second // 初始重试延迟
-	const maxDelay = 5 * time.Second     // 重试延迟的最大值
+	// retryCount := 0
+	// const initialDelay = 1 * time.Second // 初始重试延迟
+	// const maxDelay = 5 * time.Second     // 重试延迟的最大值
 
-	for {
-		select {
-		default:
-			// 为了减少锁的竞争，仅在需要时加锁
-			runner.mu.RLock()
-			defer runner.mu.RUnlock()
+	// for {
+	// 	select {
+	// 	default:
+	// 		// 为了减少锁的竞争，仅在需要时加锁
+	// 		runner.mu.RLock()
+	// 		defer runner.mu.RUnlock()
 
-			if result, ok := runner.Result[key]; ok {
-				// 如果找到依赖项，返回结果
-				return result
-			}
+	// 		if result, ok := runner.Result[key]; ok {
+	// 			// 如果找到依赖项，返回结果
+	// 			return result
+	// 		}
 
-			// 重试逻辑
-			retryCount++
-			if retryCount > runner.Conf.Retry {
-				// 达到最大重试次数，记录日志
-				logx.Errorf("FetchDependency: Max retries reached, dependency with key %s not fetched.", key)
-				return make(map[string]interface{})
-			}
+	// 		// 重试逻辑
+	// 		retryCount++
+	// 		if retryCount > runner.Conf.Retry {
+	// 			// 达到最大重试次数，记录日志
+	// 			logx.Errorf("FetchDependency: Max retries reached, dependency with key %s not fetched.", key)
+	// 			return make(map[string]interface{})
+	// 		}
 
-			delay := initialDelay << uint(retryCount-1)
-			if delay > maxDelay {
-				delay = maxDelay
-			}
-			time.Sleep(delay)
+	// 		delay := initialDelay << uint(retryCount-1)
+	// 		if delay > maxDelay {
+	// 			delay = maxDelay
+	// 		}
+	// 		time.Sleep(delay)
 
-		case <-ctx.Done():
-			// 优化错误日志，包含更多上下文信息
-			logx.Errorf("FetchDependency: Timeout reached, dependency with key %s not fetched.", key)
-			return make(map[string]interface{}) // 返回空map而不是nil
-		}
-	}
+	// 	case <-ctx.Done():
+	// 		// 优化错误日志，包含更多上下文信息
+	// 		logx.Errorf("FetchDependency: Timeout reached, dependency with key %s not fetched.", key)
+	// 		return make(map[string]interface{}) // 返回空map而不是nil
+	// 	}
+	// }
 }
 
 func (runner *ApiExecutor) StoreActionResult(actionKey string, respFields map[string]interface{}) error {
@@ -455,12 +474,20 @@ func (runner *ApiExecutor) StoreActionResult(actionKey string, respFields map[st
 		// 确保在发生 panic 时解锁
 		defer runner.mu.Unlock()
 
+		// 获取并打印存储的结果
+		if value, ok := runner.Result.Load(key); ok {
+			logx.Infof("存储结果: key=%s, value=%v", key, value)
+		} else {
+			logx.Infof("未找到key=%s的存储结果", key)
+		}
+
 		if r := recover(); r != nil {
 			fmt.Printf("Recovered in StoreActionResult: %v\n", r)
 			return
 		}
 	}()
-	runner.Result[key] = respFields
+	logx.Infof("存储结果: %s", key)
+	runner.Result.Store(key, respFields)
 	return nil
 }
 

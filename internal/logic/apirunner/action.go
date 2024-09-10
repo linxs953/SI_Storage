@@ -12,23 +12,64 @@ import (
 	"time"
 
 	"github.com/zeromicro/go-zero/core/logx"
+
 )
 
 func (ac *Action) TriggerAc(ctx context.Context) error {
 	var err error
 	aec := ctx.Value("apirunner").(ApiExecutorContext)
 	writeLogFunc := aec.WriteLog
-	storeResultToExecutor := aec.Store
-	fetchDependency := aec.Fetch
+	// executorResult := aec.Result
+	// storeResultToExecutor := aec.Store
+	// fetchDependency := aec.Fetch
+
+	fetchDependency := func(key string) map[string]interface{} {
+		// 重试控制
+		retryCount := 0
+		maxRetries := 3
+		retryDelay := time.Second * 2
+		logx.Infof("开始获取依赖数据,key=%s", key)
+
+		for {
+			if result, ok := aec.Result.Load(key); ok {
+				return result.(map[string]interface{})
+			}
+
+			retryCount++
+			if retryCount > maxRetries {
+				logx.Errorf("获取依赖数据失败,已达到最大重试次数,key=%s", key)
+				break
+			}
+
+			logx.Infof("正在重试获取依赖数据,key=%s,第%d次重试", key, retryCount)
+			time.Sleep(retryDelay)
+		}
+		if result, ok := aec.Result.Load(key); ok {
+			return result.(map[string]interface{})
+		}
+		return nil
+	}
+
+	storeResultToExecutor := func(key string, data map[string]interface{}) error {
+		storeKey := fmt.Sprintf("%s.%s", aec.ExecID, key)
+		logx.Infof("存储数据: %s", storeKey)
+		aec.Result.Store(storeKey, data)
+		return nil
+	}
 
 	if err = ac.validate(); err != nil {
 		writeLogFunc("Action", ac.ActionID, "Action_Validate", err.Error(), err)
 		return err
 	}
 
-	if err = ac.handleActionDepend(fetchDependency, fmt.Sprintf("%s.%s.%s", aec.ExecID, ac.SceneID, ac.ActionID)); err != nil {
-		writeLogFunc("Action", ac.ActionID, "Action_Process_Depend", err.Error(), err)
-		return err
+	for _, depend := range ac.Request.Dependency {
+		if depend.Type != "1" {
+			continue
+		}
+		if err = ac.handleActionDepend(fetchDependency, fmt.Sprintf("%s.%s", aec.ExecID, depend.ActionKey)); err != nil {
+			writeLogFunc("Action", ac.ActionID, "Action_Process_Depend", err.Error(), err)
+			return err
+		}
 	}
 
 	if err := ac.beforeAction(); err != nil {
@@ -168,8 +209,9 @@ func (ac *Action) handleActionDepend(fetch FetchDepend, key string) error {
 	}
 
 	for _, depend := range ac.Request.Dependency {
-		switch depend.Type {
-		case "header":
+		// logx.Error(depend)
+		switch depend.Refer.Type {
+		case "headers":
 			{
 				if depend.Type == "1" {
 					actionResp := fetch(key)
@@ -181,7 +223,11 @@ func (ac *Action) handleActionDepend(fetch FetchDepend, key string) error {
 					if !ok {
 						return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
 					}
-					ac.Request.Headers[depend.Refer.Target] = data
+					if depend.Refer.Target == "Authorization" {
+						ac.Request.Headers["Authorization"] = fmt.Sprintf("Bearer %s", data)
+					} else {
+						ac.Request.Headers[depend.Refer.Target] = data
+					}
 				}
 				break
 			}
@@ -479,6 +525,7 @@ func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 		payloadStr += fmt.Sprintf("%s=%v&", k, v)
 	}
 	payloadStr = strings.TrimRight(payloadStr, "&")
+	logx.Infof("SendRequest Payload: %v", payloadStr)
 
 	req, err := http.NewRequest(ac.Request.Method, url, strings.NewReader(payloadStr))
 	if err != nil {
@@ -489,6 +536,7 @@ func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 	for key, value := range ac.Request.Headers {
 		req.Header.Set(key, value)
 	}
+	logx.Infof("SendRequest Headers: %v", req.Header)
 
 	ac.StartTime = time.Now()
 

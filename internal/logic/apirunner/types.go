@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 )
 
 type StoreAction func(actionKey string, respFields map[string]interface{}) error
@@ -25,8 +26,9 @@ type ApiExecutor struct {
 	PreActionsMap  map[string][]string
 	ActionSceneMap map[string]string
 	mu             sync.RWMutex // 添加读写锁
-	Result         map[string]map[string]interface{}
-	LogSet         []RunFlowLog
+	// Result         map[string]map[string]interface{}
+	Result sync.Map
+	LogSet []RunFlowLog
 }
 
 type ExecutorConf struct {
@@ -129,9 +131,10 @@ type Refer struct {
 }
 
 type ApiExecutorContext struct {
-	ExecID   string
-	Store    StoreAction
-	Fetch    FetchDepend
+	ExecID string
+	// Store    StoreAction
+	// Fetch    FetchDepend
+	Result   *sync.Map
 	WriteLog WriteLogFunc
 }
 
@@ -183,10 +186,11 @@ func NewApiExecutor(scenes []*SceneConfig) (*ApiExecutor, error) {
 		}
 	}
 	return &ApiExecutor{
-		Client:         *client,
-		ExecID:         execID,
-		Cases:          scenes,
-		Result:         make(map[string]map[string]interface{}),
+		Client: *client,
+		ExecID: execID,
+		Cases:  scenes,
+		// Result:         make(map[string]map[string]interface{}),
+		Result:         sync.Map{},
 		LogSet:         make([]RunFlowLog, 0),
 		ActionSceneMap: sceneActionMap,
 		PreActionsMap:  preActionMap,

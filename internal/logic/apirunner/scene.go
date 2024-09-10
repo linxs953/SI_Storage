@@ -12,6 +12,7 @@ func (sc *SceneConfig) Execute(ctx context.Context, executor *ApiExecutor) {
 	aec := ctx.Value("apirunner").(ApiExecutorContext)
 	execID := aec.ExecID
 	writeLogFunc := aec.WriteLog
+	logx.Infof("执行场景时的运行 id %s", execID)
 	writeLogFunc("Scene", sc.SceneID, "Scene_Run_Action", "开始执行场景", nil)
 	for _, action := range sc.Actions {
 		msg := fmt.Sprintf("开始执行Action --- %s", action.ActionName)
@@ -27,6 +28,7 @@ func (sc *SceneConfig) Execute(ctx context.Context, executor *ApiExecutor) {
 			)
 		}
 	}
+
 	select {
 	case <-time.After(time.Duration(sc.Timeout) * time.Second):
 		msg := fmt.Sprintf("执行超时,sceneID=%s, execID=%s", sc.SceneID, execID)
