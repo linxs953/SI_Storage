@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+
 )
 
 type TaskRunLog struct {
@@ -28,4 +29,49 @@ type ActionLog struct {
 	Payload  interface{}       `bson:"payload,omitempty" json:"payload,omitempty"`
 	Response interface{}       `bson:"response,omitempty" json:"response,omitempty"`
 	Verify   []interface{}     `bson:"verify,omitempty" json:"verify,omitempty"`
+}
+
+type TaskRunLog2 struct {
+	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	ExecID       string             `bson:"execId,omitempty" json:"execId,omitempty"`
+	LogType      string             `bson:"logType,omitempty" json:"logType,omitempty"`
+	SceneDetail  SceneLog           `bson:"sceneDetail,omitempty" json:"sceneDetail,omitempty`
+	ActionDetail ActionLog2         `bson:"actionDetail,omitempty" json:"sceneDetail,omitempty"`
+}
+
+type SceneLog struct {
+	SceneID      string
+	Events       []EventMeta
+	State        int
+	FinishCount  int
+	SuccessCount int
+	FailCount    int
+}
+
+type ActionLog2 struct {
+	SceneID  string
+	ActionID string
+	Events   []EventMeta
+	Request  RequestMeta
+	Response map[string]interface{}
+	Error    error
+	State    int
+	Duration int
+}
+
+type RequestMeta struct {
+	URL        string
+	Method     string
+	Headers    map[string]interface{}
+	Payload    interface{}
+	Dependency []map[string]interface{}
+}
+
+type EventMeta struct {
+	EventName string
+	EventType string
+	Message   string
+	State     int
+	Error     error
+	Duration  int
 }
