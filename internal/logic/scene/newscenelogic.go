@@ -196,9 +196,15 @@ func sceneTempGen(apiIDs []int, sceneName, description, author, mongourl string)
 		}
 
 		if apid.ApiMethod == "GET" {
-			action.Headers["Content-Type"] = "application/json; charset=utf-8"
+			apid.ApiHeaders = append(apid.ApiHeaders, &apidetail.ApiHeader{
+				HeaderName:  "Content-Type",
+				HeaderValue: "application/json; charset=utf-8",
+			})
 		} else {
-			action.Headers["Content-Type"] = apid.ApiPayload.ContentType
+			apid.ApiHeaders = append(apid.ApiHeaders, &apidetail.ApiHeader{
+				HeaderName:  "Content-Type",
+				HeaderValue: apid.ApiPayload.ContentType,
+			})
 		}
 
 		if apid.ApiHeaders != nil {

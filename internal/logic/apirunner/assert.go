@@ -101,8 +101,11 @@ func assertInt(value int, desire int, operation string) bool {
 
 func assertString(value string, desire string, operation string) bool {
 	switch operation {
-	case "eq":
+	case "equal":
 		return value == desire
+	default:
+		{
+			return value == desire
+		}
 	}
-	return false
 }
