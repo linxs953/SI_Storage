@@ -247,7 +247,7 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 	}
 	logx.Error(string(exectorBts))
 
-	exector.Run(context.Background(), l.svcCtx.RedisClient)
+	exector.Run(context.Background(), l.svcCtx.RedisClient, l.svcCtx.Config.Database.Mongo)
 
 	return &types.RunTaskResp{
 		Code:    0,

@@ -154,6 +154,20 @@ type RunFlowLog struct {
 	// 日志触发节点
 	TriggerNode string `json:"trigger_node"`
 
+	// scene级别字段
+	FinishCount  int `json:"finish_count"`
+	SuccessCount int `json:"success_count"`
+	FailCount    int `json:"fail_count"`
+
+	// action级别字段
+	SceneID        string                   `json:"scene_id"`
+	RequestURL     string                   `json:"request_url"`
+	RequestMethod  string                   `json:"request_method"`
+	RequestHeaders map[string]string        `json:"request_headers"`
+	RequestPayload interface{}              `json:"request_payload"`
+	RequestDepend  []map[string]interface{} `json:"request_depend"`
+	Response       map[string]interface{}   `json:"response"`
+
 	// 日志的内容, 如果有错误，拿到Error外层的Message
 	Message string `json:"message"`
 

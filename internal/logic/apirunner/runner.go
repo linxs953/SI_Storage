@@ -7,6 +7,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+
+	"lexa-engine/internal/config"
+	mongo "lexa-engine/internal/model/mongo"
+
+	"lexa-engine/internal/model/mongo/task_run_log"
 
 	"github.com/pkg/errors"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -326,33 +332,59 @@ func (runner *ApiExecutor) handleEventRefer(depend ActionDepend) (value string, 
 	return
 }
 
-func (runner *ApiExecutor) Run(ctx context.Context, rdsClient *redis.Redis) {
+func (runner *ApiExecutor) Run(ctx context.Context, rdsClient *redis.Redis, mgoConfig config.MongoConfig) {
 	if err := runner.Initialize(rdsClient); err != nil {
 		logx.Error(err)
 		return
 	}
-	go runner.ScheduleTask(ctx)
+	go runner.ScheduleTask(ctx, mgoConfig)
 }
 
-func (runner *ApiExecutor) ScheduleTask(ctx context.Context) {
+func (runner *ApiExecutor) ScheduleTask(ctx context.Context, mgoConfig config.MongoConfig) {
 	var wg sync.WaitGroup
 	ctx = context.WithValue(ctx, "apirunner", ApiExecutorContext{
-		ExecID:   runner.ExecID,
-		Result:   &runner.Result,
-		LogChan:  runner.LogChan,
+		ExecID:  runner.ExecID,
+		Result:  &runner.Result,
+		LogChan: runner.LogChan,
 	})
 	logx.Info("执行器初始化完成")
 	logx.Infof("开始执行任务 [%s]", runner.ExecID)
+
+	murl := mongo.GetMongoUrl(mgoConfig)
+	mod := task_run_log.NewTaskRunLogModel(murl, "lct", "TaskRunLog")
+
 	wg.Add(1)
-	go func() {
+	go func(mod task_run_log.TaskRunLogModel) {
 		defer func() {
 			close(runner.LogChan)
 			wg.Done()
 		}()
 		for log := range runner.LogChan {
-			logx.Infof("执行器日志: %s", log)
+			if log.LogType == "scene" {
+				taskLog, err := mod.FindLogRecord(ctx, log.RunId, log.EventId, "", "scene")
+				if err != nil {
+					logx.Error(err)
+				}
+				if taskLog != nil && err == nil {
+					updateSceneRecord(log, mod)
+					continue
+				}
+				createSceneRecord(log, mod)
+			}
+
+			if log.LogType == "action" {
+				taskLog, err := mod.FindLogRecord(ctx, log.RunId, log.SceneID, log.EventId, "action")
+				if err != nil {
+					logx.Error(err)
+				}
+				if taskLog != nil && err == nil {
+					updateActionRecord(log, mod)
+					continue
+				}
+				createActionRecord(log, mod)
+			}
 		}
-	}()
+	}(mod)
 
 	for _, scene := range runner.Cases {
 		wg.Add(1)
@@ -367,4 +399,40 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context) {
 
 	// 这个时候所有场景都已经执行完成
 	close(runner.LogChan)
+}
+
+func updateActionRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) {
+	// 1. 接受ActionFinish事件，更新ActionRecord，同时更新SceneRecord的数量
+	// 2. 接受ActionUpdate事件，更新ActionRecord，同时更新SceneRecord的数量
+}
+
+func createActionRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) {
+	// 接受ActionStart事件，创建ActionRecord
+}
+
+func createSceneRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
+	// 接受SceneStart事件，创建SceneRecord
+	if err := mod.Insert(context.Background(), &task_run_log.TaskRunLog{
+		ExecID:   log.RunId,
+		LogType:  "scene",
+		CreateAt: time.Now(),
+		UpdateAt: time.Now(),
+		SceneDetail: task_run_log.SceneLog{
+			SceneID:      log.EventId,
+			Events:       []task_run_log.EventMeta{},
+			FinishCount:  0,
+			SuccessCount: 0,
+			FailCount:    0,
+			Duration:     0,
+			State:        0,
+			Error:        log.RootErr,
+		},
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func updateSceneRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) {
+
 }

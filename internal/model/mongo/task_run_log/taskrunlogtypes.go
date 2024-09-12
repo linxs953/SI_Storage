@@ -1,4 +1,4 @@
-package model
+package task_run_log
 
 import (
 	"time"
@@ -6,71 +6,76 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// type TaskRunLog struct {
+// 	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+// 	Type       string             `bson:"type,omitempty" json:"type,omitempty"`
+// 	RequestID  string             `bson:"requestId,omitempty" json:"requestId,omitempty"`
+// 	SceneID    string             `bson:"sceneId,omitempty" json:"sceneId,omitempty"`
+// 	ActionID   string             `bson:"actionId,omitempty" json:"actionId,omitempty"`
+// 	Detail     ActionLog          `bson:"detail,omitempty" json:"detail,omitempty"`
+// 	Total      int                `bson:"total,omitempty" json:"total,omitempty"`
+// 	State      int                `bson:"state,omitempty" json:"state,omitempty"`
+// 	StartTime  time.Time          `bson:"startTime,omitempty" json:"startTime,omitempty"`
+// 	FinishTime time.Time          `bson:"finishTime,omitempty" json:"finishTime,omitempty"`
+// 	UpdateAt   time.Time          `bson:"updateAt,omitempty" json:"updateAt,omitempty"`
+// 	CreateAt   time.Time          `bson:"createAt,omitempty" json:"createAt,omitempty"`
+// }
+
+// type ActionLog struct {
+// 	URL      string            `bson:"url,omitempty" json:"url,omitempty"`
+// 	Method   string            `bson:"method,omitempty" json:"method,omitempty"`
+// 	Headers  map[string]string `bson:"headers,omitempty" json:"headers,omitempty"`
+// 	Payload  interface{}       `bson:"payload,omitempty" json:"payload,omitempty"`
+// 	Response interface{}       `bson:"response,omitempty" json:"response,omitempty"`
+// 	Verify   []interface{}     `bson:"verify,omitempty" json:"verify,omitempty"`
+// }
+
 type TaskRunLog struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-	Type       string             `bson:"type,omitempty" json:"type,omitempty"`
-	RequestID  string             `bson:"requestId,omitempty" json:"requestId,omitempty"`
-	SceneID    string             `bson:"sceneId,omitempty" json:"sceneId,omitempty"`
-	ActionID   string             `bson:"actionId,omitempty" json:"actionId,omitempty"`
-	Detail     ActionLog          `bson:"detail,omitempty" json:"detail,omitempty"`
-	Total      int                `bson:"total,omitempty" json:"total,omitempty"`
-	State      int                `bson:"state,omitempty" json:"state,omitempty"`
-	StartTime  time.Time          `bson:"startTime,omitempty" json:"startTime,omitempty"`
-	FinishTime time.Time          `bson:"finishTime,omitempty" json:"finishTime,omitempty"`
-	UpdateAt   time.Time          `bson:"updateAt,omitempty" json:"updateAt,omitempty"`
-	CreateAt   time.Time          `bson:"createAt,omitempty" json:"createAt,omitempty"`
-}
-
-type ActionLog struct {
-	URL      string            `bson:"url,omitempty" json:"url,omitempty"`
-	Method   string            `bson:"method,omitempty" json:"method,omitempty"`
-	Headers  map[string]string `bson:"headers,omitempty" json:"headers,omitempty"`
-	Payload  interface{}       `bson:"payload,omitempty" json:"payload,omitempty"`
-	Response interface{}       `bson:"response,omitempty" json:"response,omitempty"`
-	Verify   []interface{}     `bson:"verify,omitempty" json:"verify,omitempty"`
-}
-
-type TaskRunLog2 struct {
 	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
 	ExecID       string             `bson:"execId,omitempty" json:"execId,omitempty"`
 	LogType      string             `bson:"logType,omitempty" json:"logType,omitempty"`
 	SceneDetail  SceneLog           `bson:"sceneDetail,omitempty" json:"sceneDetail,omitempty"`
-	ActionDetail ActionLog2         `bson:"actionDetail,omitempty" json:"actionDetail,omitempty"`
+	ActionDetail ActionLog          `bson:"actionDetail,omitempty" json:"actionDetail,omitempty"`
+	CreateAt     time.Time          `bson:"createAt,omitempty" json:"createAt,omitempty"`
+	UpdateAt     time.Time          `bson:"updateAt,omitempty" json:"updateAt,omitempty"`
 }
 
 type SceneLog struct {
-	SceneID      string
-	Events       []EventMeta
-	State        int
-	FinishCount  int
-	SuccessCount int
-	FailCount    int
+	SceneID      string      `bson:"sceneId,omitempty" json:"sceneId,omitempty"`
+	Events       []EventMeta `bson:"events,omitempty" json:"events,omitempty"`
+	FinishCount  int         `bson:"finishCount,omitempty" json:"finishCount,omitempty"`
+	SuccessCount int         `bson:"successCount,omitempty" json:"successCount,omitempty"`
+	FailCount    int         `bson:"failCount,omitempty" json:"failCount,omitempty"`
+	Duration     int         `bson:"duration,omitempty" json:"duration,omitempty"`
+	State        int         `bson:"state,omitempty" json:"state,omitempty"`
+	Error        error       `bson:"error,omitempty" json:"error,omitempty"`
 }
 
-type ActionLog2 struct {
-	SceneID  string
-	ActionID string
-	Events   []EventMeta
-	Request  RequestMeta
-	Response map[string]interface{}
-	Error    error
-	State    int
-	Duration int
+type ActionLog struct {
+	SceneID  string                 `bson:"sceneId,omitempty" json:"sceneId,omitempty"`
+	ActionID string                 `bson:"actionId,omitempty" json:"actionId,omitempty"`
+	Events   []EventMeta            `bson:"events,omitempty" json:"events,omitempty"`
+	Request  RequestMeta            `bson:"request,omitempty" json:"request,omitempty"`
+	Response map[string]interface{} `bson:"response,omitempty" json:"response,omitempty"`
+	Error    error                  `bson:"error,omitempty" json:"error,omitempty"`
+	State    int                    `bson:"state,omitempty" json:"state,omitempty"`
+	Duration int                    `bson:"duration,omitempty" json:"duration,omitempty"`
 }
 
 type RequestMeta struct {
-	URL        string
-	Method     string
-	Headers    map[string]interface{}
-	Payload    interface{}
-	Dependency []map[string]interface{}
+	URL        string                   `bson:"url,omitempty" json:"url,omitempty"`
+	Method     string                   `bson:"method,omitempty" json:"method,omitempty"`
+	Headers    map[string]string        `bson:"headers,omitempty" json:"headers,omitempty"`
+	Payload    interface{}              `bson:"payload,omitempty" json:"payload,omitempty"`
+	Dependency []map[string]interface{} `bson:"dependency,omitempty" json:"dependency,omitempty"`
 }
 
 type EventMeta struct {
-	EventName string
-	EventType string
-	Message   string
-	State     int
-	Error     error
-	Duration  int
+	EventName string `bson:"eventName,omitempty" json:"eventName,omitempty"`
+	EventType string `bson:"eventType,omitempty" json:"eventType,omitempty"`
+	Message   string `bson:"message,omitempty" json:"message,omitempty"`
+	Error     error  `bson:"error,omitempty" json:"error,omitempty"`
+	// Duration    int       `bson:"duration,omitempty" json:"duration,omitempty"`
+	TriggerTime time.Time `bson:"triggerTime,omitempty" json:"triggerTime,omitempty"`
+	State       int       `bson:"state,omitempty" json:"state,omitempty"`
 }

@@ -1,4 +1,4 @@
-package model
+package task_run_log
 
 import (
 	"errors"
