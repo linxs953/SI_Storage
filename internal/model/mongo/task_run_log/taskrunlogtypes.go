@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
-
 )
 
 type TaskRunLog struct {
@@ -35,8 +34,8 @@ type TaskRunLog2 struct {
 	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
 	ExecID       string             `bson:"execId,omitempty" json:"execId,omitempty"`
 	LogType      string             `bson:"logType,omitempty" json:"logType,omitempty"`
-	SceneDetail  SceneLog           `bson:"sceneDetail,omitempty" json:"sceneDetail,omitempty`
-	ActionDetail ActionLog2         `bson:"actionDetail,omitempty" json:"sceneDetail,omitempty"`
+	SceneDetail  SceneLog           `bson:"sceneDetail,omitempty" json:"sceneDetail,omitempty"`
+	ActionDetail ActionLog2         `bson:"actionDetail,omitempty" json:"actionDetail,omitempty"`
 }
 
 type SceneLog struct {
