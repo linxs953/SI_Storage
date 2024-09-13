@@ -34,8 +34,8 @@ type TaskRunLog struct {
 	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
 	ExecID       string             `bson:"execId,omitempty" json:"execId,omitempty"`
 	LogType      string             `bson:"logType,omitempty" json:"logType,omitempty"`
-	SceneDetail  SceneLog           `bson:"sceneDetail,omitempty" json:"sceneDetail,omitempty"`
-	ActionDetail ActionLog          `bson:"actionDetail,omitempty" json:"actionDetail,omitempty"`
+	SceneDetail  *SceneLog          `bson:"sceneDetail,omitempty" json:"sceneDetail,omitempty"`
+	ActionDetail *ActionLog         `bson:"actionDetail,omitempty" json:"actionDetail,omitempty"`
 	CreateAt     time.Time          `bson:"createAt,omitempty" json:"createAt,omitempty"`
 	UpdateAt     time.Time          `bson:"updateAt,omitempty" json:"updateAt,omitempty"`
 }
@@ -43,23 +43,23 @@ type TaskRunLog struct {
 type SceneLog struct {
 	SceneID      string      `bson:"sceneId,omitempty" json:"sceneId,omitempty"`
 	Events       []EventMeta `bson:"events,omitempty" json:"events,omitempty"`
-	FinishCount  int         `bson:"finishCount,omitempty" json:"finishCount,omitempty"`
-	SuccessCount int         `bson:"successCount,omitempty" json:"successCount,omitempty"`
-	FailCount    int         `bson:"failCount,omitempty" json:"failCount,omitempty"`
-	Duration     int         `bson:"duration,omitempty" json:"duration,omitempty"`
-	State        int         `bson:"state,omitempty" json:"state,omitempty"`
-	Error        error       `bson:"error,omitempty" json:"error,omitempty"`
+	FinishCount  int         `bson:"finishCount" json:"finishCount"`
+	SuccessCount int         `bson:"successCount" json:"successCount"`
+	FailCount    int         `bson:"failCount" json:"failCount"`
+	Duration     int         `bson:"duration" json:"duration"`
+	State        int         `bson:"state" json:"state"`
+	Error        string      `bson:"error" json:"error"`
 }
 
 type ActionLog struct {
 	SceneID  string                 `bson:"sceneId,omitempty" json:"sceneId,omitempty"`
 	ActionID string                 `bson:"actionId,omitempty" json:"actionId,omitempty"`
 	Events   []EventMeta            `bson:"events,omitempty" json:"events,omitempty"`
-	Request  RequestMeta            `bson:"request,omitempty" json:"request,omitempty"`
-	Response map[string]interface{} `bson:"response,omitempty" json:"response,omitempty"`
-	Error    error                  `bson:"error,omitempty" json:"error,omitempty"`
-	State    int                    `bson:"state,omitempty" json:"state,omitempty"`
-	Duration int                    `bson:"duration,omitempty" json:"duration,omitempty"`
+	Request  *RequestMeta           `bson:"request" json:"request"`
+	Response map[string]interface{} `bson:"response" json:"response"`
+	Error    string                 `bson:"error" json:"error"`
+	State    int                    `bson:"state" json:"state"`
+	Duration int                    `bson:"duration" json:"duration"`
 }
 
 type RequestMeta struct {
@@ -74,7 +74,7 @@ type EventMeta struct {
 	EventName string `bson:"eventName,omitempty" json:"eventName,omitempty"`
 	EventType string `bson:"eventType,omitempty" json:"eventType,omitempty"`
 	Message   string `bson:"message,omitempty" json:"message,omitempty"`
-	Error     error  `bson:"error,omitempty" json:"error,omitempty"`
+	Error     string `bson:"error,omitempty" json:"error,omitempty"`
 	// Duration    int       `bson:"duration,omitempty" json:"duration,omitempty"`
 	TriggerTime time.Time `bson:"triggerTime,omitempty" json:"triggerTime,omitempty"`
 	State       int       `bson:"state,omitempty" json:"state,omitempty"`

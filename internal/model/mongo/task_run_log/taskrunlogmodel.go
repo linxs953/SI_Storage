@@ -35,17 +35,17 @@ func (m *customTaskRunLogModel) Insert(ctx context.Context, data *TaskRunLog) er
 }
 
 func (m *customTaskRunLogModel) FindLogRecord(ctx context.Context, execID string, sceneId string, actionId string, logType string) (*TaskRunLog, error) {
-	var record *TaskRunLog
+	var record TaskRunLog
 	if logType == "scene" {
-		if err := m.conn.Find(ctx, record, bson.M{"execId": execID, "logType": "scene", "sceneDetail.sceneId": sceneId}); err != nil {
+		if err := m.conn.FindOne(ctx, &record, bson.M{"execId": execID, "logType": "scene", "sceneDetail.sceneId": sceneId}); err != nil {
 			return nil, err
 		}
 	}
 	if logType == "action" {
-		if err := m.conn.Find(ctx, record, bson.M{"execId": execID, "logType": "action", "actionDetail.sceneId": sceneId, "actionDetail.actionId": actionId}); err != nil {
+		if err := m.conn.FindOne(ctx, &record, bson.M{"execId": execID, "logType": "action", "actionDetail.sceneId": sceneId, "actionDetail.actionId": actionId}); err != nil {
 			return nil, err
 		}
 	}
 
-	return record, nil
+	return &record, nil
 }
