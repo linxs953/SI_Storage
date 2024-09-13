@@ -61,7 +61,6 @@ func (runner *ApiExecutor) filledHeader(depend ActionDepend, action *Action, rds
 			return err
 		}
 	}
-	logx.Error(action.Request.Headers)
 	return nil
 }
 
@@ -360,25 +359,30 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, mgoConfig config.Mo
 			wg.Done()
 		}()
 		for log := range runner.LogChan {
-			if log.LogType == "scene" {
+			if log.LogType == "SCENE" {
 				taskLog, err := mod.FindLogRecord(ctx, log.RunId, log.EventId, "", "scene")
 				if err != nil {
 					logx.Error(err)
 				}
 				if taskLog != nil && err == nil {
-					updateSceneRecord(log, mod)
+					updateSceneRecord(taskLog, log, mod)
 					continue
 				}
 				createSceneRecord(log, mod)
 			}
 
-			if log.LogType == "action" {
+			if log.LogType == "ACTION" {
 				taskLog, err := mod.FindLogRecord(ctx, log.RunId, log.SceneID, log.EventId, "action")
 				if err != nil {
 					logx.Error(err)
 				}
+				sceneLog, err := mod.FindLogRecord(ctx, log.RunId, log.SceneID, "", "scene")
+				if err != nil {
+					logx.Error(err)
+				}
 				if taskLog != nil && err == nil {
-					updateActionRecord(log, mod)
+					updateActionRecord(taskLog, log, mod)
+					syncSceneRecord(sceneLog, log, mod)
 					continue
 				}
 				createActionRecord(log, mod)
@@ -401,31 +405,88 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, mgoConfig config.Mo
 	close(runner.LogChan)
 }
 
-func updateActionRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) {
+func updateActionRecord(record *task_run_log.TaskRunLog, log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
 	// 1. 接受ActionFinish事件，更新ActionRecord，同时更新SceneRecord的数量
 	// 2. 接受ActionUpdate事件，更新ActionRecord，同时更新SceneRecord的数量
+	if record == nil {
+		return fmt.Errorf("record is nil")
+	}
+	errStr := ""
+	if log.RootErr != nil {
+		errStr = log.RootErr.Error()
+	}
+
+	event := task_run_log.EventMeta{
+		EventName:   log.TriggerNode,
+		Message:     log.Message,
+		TriggerTime: time.Now(),
+		Error:       errStr,
+	}
+	record.ActionDetail.Error = errStr
+	record.ActionDetail.Events = append(record.ActionDetail.Events, event)
+	record.ActionDetail.Request = &task_run_log.RequestMeta{
+		Method:     log.RequestMethod,
+		URL:        log.RequestURL,
+		Headers:    log.RequestHeaders,
+		Payload:    log.RequestPayload,
+		Dependency: log.RequestDepend,
+	}
+	if log.RootErr != nil {
+		record.ActionDetail.State = 2
+	} else {
+		record.ActionDetail.State = 1
+	}
+	record.ActionDetail.Response = log.Response
+	record.ActionDetail.Duration = int(time.Since(record.CreateAt).Milliseconds())
+	record.UpdateAt = time.Now()
+	if _, err := mod.Update(context.Background(), record); err != nil {
+		return err
+	}
+	return nil
 }
 
-func createActionRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) {
+func syncSceneRecord(record *task_run_log.TaskRunLog, log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
+	if record == nil {
+		return fmt.Errorf("record is nil")
+	}
+
+	if log.ActionIsEof {
+		record.SceneDetail.FinishCount++
+		if log.RootErr != nil {
+			record.SceneDetail.FailCount++
+		} else {
+			record.SceneDetail.SuccessCount++
+		}
+	}
+	if _, err := mod.Update(context.Background(), record); err != nil {
+		logx.Error(err)
+		return err
+	}
+	return nil
+}
+
+func createActionRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
 	// 接受ActionStart事件，创建ActionRecord
-}
-
-func createSceneRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
-	// 接受SceneStart事件，创建SceneRecord
 	if err := mod.Insert(context.Background(), &task_run_log.TaskRunLog{
 		ExecID:   log.RunId,
-		LogType:  "scene",
+		LogType:  "action",
 		CreateAt: time.Now(),
 		UpdateAt: time.Now(),
-		SceneDetail: task_run_log.SceneLog{
-			SceneID:      log.EventId,
-			Events:       []task_run_log.EventMeta{},
-			FinishCount:  0,
-			SuccessCount: 0,
-			FailCount:    0,
-			Duration:     0,
-			State:        0,
-			Error:        log.RootErr,
+		ActionDetail: &task_run_log.ActionLog{
+			SceneID:  log.SceneID,
+			ActionID: log.EventId,
+			Events:   []task_run_log.EventMeta{},
+			Request: &task_run_log.RequestMeta{
+				Method:     log.RequestMethod,
+				URL:        log.RequestURL,
+				Headers:    log.RequestHeaders,
+				Payload:    log.RequestPayload,
+				Dependency: log.RequestDepend,
+			},
+			Response: nil,
+			State:    0,
+			Duration: 0,
+			Error:    "",
 		},
 	}); err != nil {
 		return err
@@ -433,6 +494,66 @@ func createSceneRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
 	return nil
 }
 
-func updateSceneRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) {
+func createSceneRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
+	// 接受SceneStart事件，创建SceneRecord
+	errStr := ""
+	if log.RootErr != nil {
+		errStr = log.RootErr.Error()
+	}
+	if err := mod.Insert(context.Background(), &task_run_log.TaskRunLog{
+		ExecID:   log.RunId,
+		LogType:  "scene",
+		CreateAt: time.Now(),
+		UpdateAt: time.Now(),
+		SceneDetail: &task_run_log.SceneLog{
+			SceneID: log.EventId,
+			Events: []task_run_log.EventMeta{
+				{
+					EventName:   log.TriggerNode,
+					Message:     log.Message,
+					TriggerTime: time.Now(),
+					Error:       errStr,
+				},
+			},
+			FinishCount:  0,
+			SuccessCount: 0,
+			FailCount:    0,
+			Duration:     0,
+			State:        0,
+			Error:        errStr,
+		},
+	}); err != nil {
+		return err
+	}
+	return nil
+}
 
+func updateSceneRecord(record *task_run_log.TaskRunLog, log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
+	if record == nil {
+		return fmt.Errorf("record is nil")
+	}
+	errStr := ""
+	if log.RootErr != nil {
+		errStr = log.RootErr.Error()
+	}
+	event := task_run_log.EventMeta{
+		EventName:   log.TriggerNode,
+		Message:     log.Message,
+		TriggerTime: time.Now(),
+		Error:       errStr,
+	}
+	record.SceneDetail.Error = errStr
+	if log.RootErr != nil {
+		record.SceneDetail.State = 2
+	} else {
+		record.SceneDetail.State = 1
+	}
+	record.SceneDetail.Events = append(record.SceneDetail.Events, event)
+	record.UpdateAt = time.Now()
+	// 计算时间戳
+	record.SceneDetail.Duration = int(time.Since(record.CreateAt).Milliseconds())
+	if _, err := mod.Update(context.Background(), record); err != nil {
+		return err
+	}
+	return nil
 }

@@ -167,6 +167,7 @@ type RunFlowLog struct {
 	RequestPayload interface{}              `json:"request_payload"`
 	RequestDepend  []map[string]interface{} `json:"request_depend"`
 	Response       map[string]interface{}   `json:"response"`
+	ActionIsEof    bool                     `json:"action_is_eof"`
 
 	// 日志的内容, 如果有错误，拿到Error外层的Message
 	Message string `json:"message"`

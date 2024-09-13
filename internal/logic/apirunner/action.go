@@ -15,6 +15,18 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
+func (ac *Action) getActionPath() (path string) {
+	path = fmt.Sprintf("https://%s%s", ac.Request.Domain, ac.Request.Path)
+	if ac.Request.Params != nil && len(ac.Request.Params) > 0 {
+		params := make([]string, 0)
+		for k, v := range ac.Request.Params {
+			params = append(params, fmt.Sprintf("%s=%s", k, v))
+		}
+		path = fmt.Sprintf("%s?%s", path, strings.Join(params, "&"))
+	}
+	return
+}
+
 func (ac *Action) TriggerAc(ctx context.Context) error {
 	var err error
 	aec := ctx.Value("apirunner").(ApiExecutorContext)
@@ -53,15 +65,43 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		return nil
 	}
 
+	aec.LogChan <- RunFlowLog{
+		LogType:     "ACTION",
+		EventId:     ac.ActionID,
+		RunId:       aec.ExecID,
+		SceneID:     ac.SceneID,
+		TriggerNode: "Action_Start",
+		Message:     fmt.Sprintf("开始执行Action: %s", ac.ActionID),
+		RootErr:     nil,
+	}
+
 	if err = ac.validate(); err != nil {
 		logx.Error(err)
 		aec.LogChan <- RunFlowLog{
-			EventId: ac.ActionID,
-			LogType: "Action_Validate",
-			Message: err.Error(),
-			RootErr: err,
+			LogType:     "ACTION",
+			EventId:     ac.ActionID,
+			RunId:       aec.ExecID,
+			SceneID:     ac.SceneID,
+			TriggerNode: "Action_Validate",
+			Message:     err.Error(),
+			RootErr:     err,
+			ActionIsEof: true,
 		}
 		return err
+	}
+
+	aec.LogChan <- RunFlowLog{
+		LogType:        "ACTION",
+		EventId:        ac.ActionID,
+		RunId:          aec.ExecID,
+		SceneID:        ac.SceneID,
+		TriggerNode:    "Action_Validate_Success",
+		Message:        "Action验证成功",
+		RequestURL:     ac.getActionPath(),
+		RequestMethod:  ac.Request.Method,
+		RequestPayload: ac.Request.Payload,
+		RequestHeaders: ac.Request.Headers,
+		RootErr:        nil,
 	}
 
 	if ac.Request.Headers == nil {
@@ -74,21 +114,63 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		}
 		if err = ac.handleActionDepend(fetchDependency, fmt.Sprintf("%s.%s", aec.ExecID, depend.ActionKey)); err != nil {
 			aec.LogChan <- RunFlowLog{
-				EventId: ac.ActionID,
-				LogType: "Action_Process_Depend",
-				Message: err.Error(),
-				RootErr: err,
+				LogType:     "ACTION",
+				EventId:     ac.ActionID,
+				RunId:       aec.ExecID,
+				SceneID:     ac.SceneID,
+				TriggerNode: "Action_Process_Depend",
+				Message:     err.Error(),
+				RootErr:     err,
+				ActionIsEof: true,
 			}
 			return err
 		}
 	}
 
+	var depends []map[string]interface{}
+	for _, depend := range ac.Request.Dependency {
+		de := make(map[string]interface{})
+		de["ActionKey"] = depend.ActionKey
+		de["DataKey"] = depend.DataKey
+		de["Type"] = depend.Type
+		refer := make(map[string]interface{})
+		refer["DataType"] = depend.Refer.DataType
+		refer["Target"] = depend.Refer.Target
+		refer["Type"] = depend.Refer.Type
+		de["Refer"] = refer
+		depends = append(depends, de)
+	}
+
+	aec.LogChan <- RunFlowLog{
+		LogType:        "ACTION",
+		EventId:        ac.ActionID,
+		RunId:          aec.ExecID,
+		SceneID:        ac.SceneID,
+		RequestURL:     ac.getActionPath(),
+		RequestMethod:  ac.Request.Method,
+		RequestPayload: ac.Request.Payload,
+		RequestDepend:  depends,
+		RequestHeaders: ac.Request.Headers,
+		TriggerNode:    "Action_Paramination_Success",
+		Message:        "Action参数化成功",
+		RootErr:        nil,
+	}
+
 	if err := ac.beforeAction(); err != nil {
 		aec.LogChan <- RunFlowLog{
-			EventId: ac.ActionID,
-			LogType: "Action_Before_Hook",
-			Message: err.Error(),
-			RootErr: err,
+			LogType:        "ACTION",
+			EventId:        ac.ActionID,
+			RunId:          aec.ExecID,
+			SceneID:        ac.SceneID,
+			RequestURL:     ac.getActionPath(),
+			RequestMethod:  ac.Request.Method,
+			RequestPayload: ac.Request.Payload,
+			RequestDepend:  depends,
+			RequestHeaders: ac.Request.Headers,
+			TriggerNode:    "Action_Before_Hook",
+			Message:        err.Error(),
+			RootErr:        err,
+			ActionIsEof:    true,
 		}
 		return err
 	}
@@ -97,23 +179,57 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	resp, err := ac.sendRequest(ctx)
 	if err != nil {
 		aec.LogChan <- RunFlowLog{
-			EventId: ac.ActionID,
-			LogType: "Action_SendRequest",
-			Message: err.Error(),
-			RootErr: err,
+			LogType:        "ACTION",
+			EventId:        ac.ActionID,
+			RunId:          aec.ExecID,
+			SceneID:        ac.SceneID,
+			TriggerNode:    "Action_SendRequest",
+			Message:        err.Error(),
+			RootErr:        err,
+			RequestURL:     ac.getActionPath(),
+			RequestMethod:  ac.Request.Method,
+			RequestPayload: ac.Request.Payload,
+			RequestDepend:  depends,
+			RequestHeaders: ac.Request.Headers,
+			ActionIsEof:    true,
 		}
 		return err
 	}
 	defer resp.Body.Close()
 
+	aec.LogChan <- RunFlowLog{
+		LogType:        "ACTION",
+		EventId:        ac.ActionID,
+		RunId:          aec.ExecID,
+		SceneID:        ac.SceneID,
+		TriggerNode:    "Action_SendRequest_Success",
+		Message:        "Action 请求发送成功",
+		RootErr:        nil,
+		RequestURL:     ac.getActionPath(),
+		RequestMethod:  ac.Request.Method,
+		RequestPayload: ac.Request.Payload,
+		RequestDepend:  depends,
+		RequestHeaders: ac.Request.Headers,
+	}
+
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, resp.Body)
+
 	if err != nil {
 		aec.LogChan <- RunFlowLog{
-			EventId: ac.ActionID,
-			LogType: "Action_ReadResponse",
-			Message: err.Error(),
-			RootErr: err,
+			LogType:        "ACTION",
+			EventId:        ac.ActionID,
+			RunId:          aec.ExecID,
+			SceneID:        ac.SceneID,
+			TriggerNode:    "Action_ReadResponse",
+			Message:        err.Error(),
+			RootErr:        err,
+			RequestURL:     ac.getActionPath(),
+			RequestMethod:  ac.Request.Method,
+			RequestPayload: ac.Request.Payload,
+			RequestDepend:  depends,
+			RequestHeaders: ac.Request.Headers,
+			ActionIsEof:    true,
 		}
 		return err
 	}
@@ -121,10 +237,19 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	bodyMap := make(map[string]interface{})
 	if err := json.Unmarshal(buf.Bytes(), &bodyMap); err != nil {
 		aec.LogChan <- RunFlowLog{
-			EventId: ac.ActionID,
-			LogType: "Action_ReadResp",
-			Message: "resp转换成map失败",
-			RootErr: err,
+			LogType:        "ACTION",
+			EventId:        ac.ActionID,
+			RunId:          aec.ExecID,
+			SceneID:        ac.SceneID,
+			TriggerNode:    "Action_ReadResp",
+			Message:        "resp转换成map失败",
+			RootErr:        err,
+			RequestURL:     ac.getActionPath(),
+			RequestMethod:  ac.Request.Method,
+			RequestPayload: ac.Request.Payload,
+			RequestDepend:  depends,
+			RequestHeaders: ac.Request.Headers,
+			ActionIsEof:    true,
 		}
 		return err
 	}
@@ -135,42 +260,131 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	result := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(bodyStr), &result); err != nil {
 		aec.LogChan <- RunFlowLog{
-			EventId: ac.ActionID,
-			LogType: "Action_Transform_Response",
-			Message: err.Error(),
-			RootErr: err,
+			LogType:        "ACTION",
+			EventId:        ac.ActionID,
+			RunId:          aec.ExecID,
+			SceneID:        ac.SceneID,
+			TriggerNode:    "Action_Transform_Response",
+			Message:        err.Error(),
+			RootErr:        err,
+			RequestURL:     ac.getActionPath(),
+			RequestMethod:  ac.Request.Method,
+			RequestPayload: ac.Request.Payload,
+			RequestDepend:  depends,
+			RequestHeaders: ac.Request.Headers,
+			Response:       bodyMap,
+			ActionIsEof:    true,
 		}
 		return err
 	}
 
 	if err := ac.afterAction(); err != nil {
 		aec.LogChan <- RunFlowLog{
-			EventId: ac.ActionID,
-			LogType: "Action_After_Hook",
-			Message: err.Error(),
-			RootErr: err,
+			LogType:        "ACTION",
+			EventId:        ac.ActionID,
+			RunId:          aec.ExecID,
+			SceneID:        ac.SceneID,
+			TriggerNode:    "Action_After_Hook",
+			Message:        err.Error(),
+			RootErr:        err,
+			RequestURL:     ac.getActionPath(),
+			RequestMethod:  ac.Request.Method,
+			RequestPayload: ac.Request.Payload,
+			RequestDepend:  depends,
+			RequestHeaders: ac.Request.Headers,
+			Response:       bodyMap,
+			ActionIsEof:    true,
 		}
 		return err
+	}
+
+	aec.LogChan <- RunFlowLog{
+		LogType:        "ACTION",
+		EventId:        ac.ActionID,
+		RunId:          aec.ExecID,
+		SceneID:        ac.SceneID,
+		TriggerNode:    "Action_After_Success",
+		Message:        "Action 后置hook 执行成功",
+		RootErr:        nil,
+		RequestURL:     ac.getActionPath(),
+		RequestMethod:  ac.Request.Method,
+		RequestPayload: ac.Request.Payload,
+		RequestDepend:  depends,
+		RequestHeaders: ac.Request.Headers,
+		Response:       bodyMap,
 	}
 
 	if err := ac.expectAction(bodyMap); err != nil {
 		aec.LogChan <- RunFlowLog{
-			EventId: ac.ActionID,
-			LogType: "Action_Expect",
-			Message: err.Error(),
-			RootErr: errors.Unwrap(err),
+			LogType:        "ACTION",
+			EventId:        ac.ActionID,
+			RunId:          aec.ExecID,
+			SceneID:        ac.SceneID,
+			TriggerNode:    "Action_Expect",
+			Message:        err.Error(),
+			RootErr:        errors.Unwrap(err),
+			RequestURL:     ac.getActionPath(),
+			RequestMethod:  ac.Request.Method,
+			RequestPayload: ac.Request.Payload,
+			RequestDepend:  depends,
+			RequestHeaders: ac.Request.Headers,
+			Response:       bodyMap,
+			ActionIsEof:    true,
 		}
 		return err
 	}
 
+	aec.LogChan <- RunFlowLog{
+		LogType:        "ACTION",
+		EventId:        ac.ActionID,
+		RunId:          aec.ExecID,
+		SceneID:        ac.SceneID,
+		TriggerNode:    "Action_Expect_Success",
+		Message:        "Action 断言成功",
+		RootErr:        nil,
+		RequestURL:     ac.getActionPath(),
+		RequestMethod:  ac.Request.Method,
+		RequestPayload: ac.Request.Payload,
+		RequestDepend:  depends,
+		RequestHeaders: ac.Request.Headers,
+		Response:       bodyMap,
+	}
+
 	if err = storeResultToExecutor(fmt.Sprintf("%s.%s", ac.SceneID, ac.ActionID), result); err != nil {
 		aec.LogChan <- RunFlowLog{
-			EventId: ac.ActionID,
-			LogType: "Action_Ouput_Store",
-			Message: err.Error(),
-			RootErr: err,
+			LogType:        "ACTION",
+			EventId:        ac.ActionID,
+			RunId:          aec.ExecID,
+			SceneID:        ac.SceneID,
+			TriggerNode:    "Action_Ouput_Store",
+			Message:        err.Error(),
+			RootErr:        err,
+			RequestURL:     ac.getActionPath(),
+			RequestMethod:  ac.Request.Method,
+			RequestPayload: ac.Request.Payload,
+			RequestDepend:  depends,
+			RequestHeaders: ac.Request.Headers,
+			Response:       bodyMap,
+			ActionIsEof:    true,
 		}
 		return err
+	}
+
+	aec.LogChan <- RunFlowLog{
+		LogType:        "ACTION",
+		EventId:        ac.ActionID,
+		RunId:          aec.ExecID,
+		SceneID:        ac.SceneID,
+		TriggerNode:    "Action_Ouput_Store_Success",
+		Message:        "Action 运行结果存储成功",
+		RootErr:        nil,
+		RequestURL:     ac.getActionPath(),
+		RequestMethod:  ac.Request.Method,
+		RequestPayload: ac.Request.Payload,
+		RequestDepend:  depends,
+		RequestHeaders: ac.Request.Headers,
+		Response:       bodyMap,
+		ActionIsEof:    true,
 	}
 
 	return nil
