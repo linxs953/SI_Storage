@@ -14,6 +14,8 @@ type (
 	// and implement the added methods in customTaskRunLogModel.
 	TaskRunLogModel interface {
 		FindLogRecord(ctx context.Context, execID string, sceneId string, actionId string, logType string) (*TaskRunLog, error)
+		FindTaskRunRecord(ctx context.Context, taskId string) ([]*TaskRunLog, error)
+		FindAllSceneRecord(ctx context.Context, execId string, sceneId string) ([]*TaskRunLog, error)
 		taskRunLogModel
 	}
 
@@ -46,6 +48,27 @@ func (m *customTaskRunLogModel) FindLogRecord(ctx context.Context, execID string
 			return nil, err
 		}
 	}
+	if logType == "task" {
+		if err := m.conn.FindOne(ctx, &record, bson.M{"execId": execID, "logType": "task"}); err != nil {
+			return nil, err
+		}
+	}
 
 	return &record, nil
+}
+
+func (m *customTaskRunLogModel) FindAllSceneRecord(ctx context.Context, execId string, sceneId string) ([]*TaskRunLog, error) {
+	var sceneRecords []*TaskRunLog
+	if err := m.conn.Find(ctx, &sceneRecords, bson.M{"execId": execId, "logType": "scene", "sceneDetail.sceneId": sceneId}); err != nil {
+		return nil, err
+	}
+	return sceneRecords, nil
+}
+
+func (m *customTaskRunLogModel) FindTaskRunRecord(ctx context.Context, taskId string) ([]*TaskRunLog, error) {
+	var recordList []*TaskRunLog
+	if err := m.conn.Find(ctx, &recordList, bson.M{"taskId": taskId}); err != nil {
+		return nil, err
+	}
+	return recordList, nil
 }

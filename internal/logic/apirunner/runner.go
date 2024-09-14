@@ -336,6 +336,8 @@ func (runner *ApiExecutor) Run(ctx context.Context, rdsClient *redis.Redis, mgoC
 		logx.Error(err)
 		return
 	}
+
+	// 创建task记录
 	go runner.ScheduleTask(ctx, mgoConfig)
 }
 
@@ -359,13 +361,35 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, mgoConfig config.Mo
 			wg.Done()
 		}()
 		for log := range runner.LogChan {
+			if log.LogType == "TASK" {
+				if log.TriggerNode != "TASK_FINISH" {
+					continue
+				}
+				taskLog, err := mod.FindLogRecord(ctx, log.RunId, "", "", "task")
+				if err != nil {
+					logx.Error(err)
+					return
+				}
+				// 查找所有的scene记录，看看是否有error，有的话更新状态=2，否则状态=1
+				allRunScenes, err := mod.FindAllSceneRecord(ctx, log.RunId, log.SceneID)
+				if err != nil {
+					logx.Error(err)
+					return
+				}
+
+				syncTaskRecord(taskLog, allRunScenes, log, mod)
+			}
 			if log.LogType == "SCENE" {
-				taskLog, err := mod.FindLogRecord(ctx, log.RunId, log.EventId, "", "scene")
+				sceneLog, err := mod.FindLogRecord(ctx, log.RunId, log.EventId, "", "scene")
+				if err != nil {
+					logx.Error(err)
+				}
+				taskLog, err := mod.FindLogRecord(ctx, log.RunId, "", "", "task")
 				if err != nil {
 					logx.Error(err)
 				}
 				if taskLog != nil && err == nil {
-					updateSceneRecord(taskLog, log, mod)
+					updateSceneRecord(sceneLog, log, mod)
 					continue
 				}
 				createSceneRecord(log, mod)
@@ -400,6 +424,14 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, mgoConfig config.Mo
 	}
 	wg.Wait()
 	logx.Infof("执行任务 [%s] 结束", runner.ExecID)
+
+	// 发送task_finish事件
+	runner.LogChan <- RunFlowLog{
+		LogType:     "TASK",
+		TriggerNode: "TASK_FINISH",
+		RunId:       runner.ExecID,
+		Message:     "任务执行完成",
+	}
 
 	// 这个时候所有场景都已经执行完成
 	close(runner.LogChan)
@@ -552,6 +584,33 @@ func updateSceneRecord(record *task_run_log.TaskRunLog, log RunFlowLog, mod task
 	record.UpdateAt = time.Now()
 	// 计算时间戳
 	record.SceneDetail.Duration = int(time.Since(record.CreateAt).Milliseconds())
+	if _, err := mod.Update(context.Background(), record); err != nil {
+		return err
+	}
+	return nil
+}
+
+func syncTaskRecord(record *task_run_log.TaskRunLog, allRunScene []*task_run_log.TaskRunLog, log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
+	if record == nil {
+		return fmt.Errorf("record is nil")
+	}
+
+	isSuccess := true
+	for _, scene := range allRunScene {
+		if scene == nil {
+			continue
+		}
+		if scene.SceneDetail.State == 2 {
+			isSuccess = false
+		}
+	}
+
+	if isSuccess {
+		record.TaskDetail.TaskState = 1
+	} else {
+		record.TaskDetail.TaskState = 2
+	}
+
 	if _, err := mod.Update(context.Background(), record); err != nil {
 		return err
 	}

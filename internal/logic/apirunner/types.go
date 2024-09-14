@@ -155,9 +155,10 @@ type RunFlowLog struct {
 	TriggerNode string `json:"trigger_node"`
 
 	// scene级别字段
-	FinishCount  int `json:"finish_count"`
-	SuccessCount int `json:"success_count"`
-	FailCount    int `json:"fail_count"`
+	FinishCount  int  `json:"finish_count"`
+	SuccessCount int  `json:"success_count"`
+	FailCount    int  `json:"fail_count"`
+	SceneIsEof   bool `json:"scene_is_eof"`
 
 	// action级别字段
 	SceneID        string                   `json:"scene_id"`

@@ -15,7 +15,10 @@ import (
 
 	"lexa-engine/internal/logic/apirunner"
 	mgoutil "lexa-engine/internal/model/mongo"
+	mongo "lexa-engine/internal/model/mongo"
+	"lexa-engine/internal/model/mongo/task_run_log"
 	"lexa-engine/internal/model/mongo/taskinfo"
+
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
 )
@@ -247,6 +250,12 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 	}
 	logx.Error(string(exectorBts))
 
+	// 创建任务执行记录
+	if _, err := l.CreateTaskRunRecord(req.TaskId, exector.ExecID); err != nil {
+		logx.Error(err)
+		return nil, err
+	}
+
 	exector.Run(context.Background(), l.svcCtx.RedisClient, l.svcCtx.Config.Database.Mongo)
 
 	return &types.RunTaskResp{
@@ -260,16 +269,31 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 	}, nil
 }
 
-// func unMarshalTask() (*Scene, error) {
-// 	jsonString := `{"description":"创建订单","type":"1","author":"linxs","sceneId":"100300424","requestId":"实例化id","actions":[{"actionName":"账号密码登录","relateId":100300424,"dependency":[{"type":"upstream","eventName":"订阅的事件名称","refer":[{"field":"$eventData.$token","match":"$auth","location":"payload / path / query / header"}]}],"output":[{"event":"action finish 事件","meta":[{"fieldName":"response字段名","fieldValue":"response字段值","dataType":"字段类型"}]}],"expect":{"sql":{"sql":"select * from psu_order","table":"psu_order","verify":[{"field":"表字段名, $table_alias.$field","value":"字段值"}]},"api":[{"type":"field / api","data":{"name":"statusCode","operation":"eq","type":"int","desire":0}},{"type":"field","data":{"name":"$.msg","operation":"eq","type":"string","desire":"操作成功"}}]}}]}`
-// 	var scene Scene
-// 	err := json.Unmarshal([]byte(jsonString), &scene)
-// 	if err != nil {
-// 		logx.Error("Error:", err)
-// 		return nil, err
-// 	}
-// 	return &scene, nil
-// }
+func (l *RunTaskLogic) CreateTaskRunRecord(taskId string, execId string) (*task_run_log.TaskRunLog, error) {
+	murl := mongo.GetMongoUrl(l.svcCtx.Config.Database.Mongo)
+	taskInfoMod := taskinfo.NewTaskInfoModel(murl, l.svcCtx.Config.Database.Mongo.UseDb, "TaskInfo")
+	mod := task_run_log.NewTaskRunLogModel(murl, "lct", "task_run_log")
+	taskMeta, err := taskInfoMod.FindByTaskId(context.Background(), taskId)
+	if err != nil {
+		return nil, err
+	}
+	data := &task_run_log.TaskRunLog{
+		TaskID:  taskId,
+		ExecID:  execId,
+		LogType: "task",
+		TaskDetail: &task_run_log.TaskLog{
+			TaskID:         taskId,
+			ExecID:         execId,
+			TaskName:       taskMeta.TaskName,
+			TaskSceneCount: len(taskMeta.Scenes),
+			TaskState:      0,
+		},
+	}
+	if err := mod.Insert(context.Background(), data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
 
 func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.ApiExecutor, error) {
 	var executor *apirunner.ApiExecutor
