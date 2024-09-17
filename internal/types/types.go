@@ -27,6 +27,29 @@ type SyncVO struct {
 	Data    map[string]interface{} `json:"data"`
 }
 
+type GetAllTaskRunRecordDto struct {
+	TaskId string `json:"taskId"`
+}
+
+type GetAllTaskRunRecordResp struct {
+	Code       int                                 `json:"code"`
+	Message    string                              `json:"messsage"`
+	TaskName   string                              `json:"taskName"`
+	TaskID     string                              `json:"taskId"`
+	Author     string                              `json:"author"`
+	SceneCount int                                 `json:"sceneCount"`
+	CreateTime string                              `json:"createTime"`
+	UpdateTime string                              `json:"updateTime"`
+	Data       map[string][]map[string]interface{} `json:"data"`
+}
+
+type TaskRecord struct {
+	RunId        string                   `json:"runId"`
+	TaskId       string                   `json:"taskId"`
+	State        int                      `json:"state"`
+	SceneRecords []map[string]interface{} `json:"sceneRecords"`
+}
+
 type GetSceneWithIdDto struct {
 	TaskID string `json:"taskId"`
 }

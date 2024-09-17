@@ -13,6 +13,7 @@ func (sc *SceneConfig) Execute(ctx context.Context, executor *ApiExecutor) {
 	execID := aec.ExecID
 	executor.LogChan <- RunFlowLog{
 		EventId:     sc.SceneID,
+		EventName:   sc.SceneName,
 		LogType:     "SCENE",
 		TriggerNode: "Scene_Start",
 		Message:     "开始执行场景",
@@ -59,6 +60,7 @@ func (sc *SceneConfig) Execute(ctx context.Context, executor *ApiExecutor) {
 
 	executor.LogChan <- RunFlowLog{
 		LogType:     "SCENE",
+		EventName:   sc.SceneName,
 		EventId:     sc.SceneID,
 		TriggerNode: "Scene_Finish",
 		Message:     "场景执行完成",
@@ -70,11 +72,12 @@ func (sc *SceneConfig) Execute(ctx context.Context, executor *ApiExecutor) {
 	case <-time.After(time.Duration(sc.Timeout) * time.Second):
 
 		executor.LogChan <- RunFlowLog{
-			EventId: sc.SceneID,
-			LogType: "Scene_Run_Timeout",
-			Message: fmt.Sprintf("执行超时,sceneID=%s, execID=%s", sc.SceneID, execID),
-			RunId:   execID,
-			RootErr: nil,
+			EventId:   sc.SceneID,
+			EventName: sc.SceneName,
+			LogType:   "Scene_Run_Timeout",
+			Message:   fmt.Sprintf("执行超时,sceneID=%s, execID=%s", sc.SceneID, execID),
+			RunId:     execID,
+			RootErr:   nil,
 		}
 		// 取消ctx，通知其他scene goroutine 退出
 		ctx.Done()
@@ -83,11 +86,12 @@ func (sc *SceneConfig) Execute(ctx context.Context, executor *ApiExecutor) {
 		// ctx被取消，即任务被取消，做一下清理动作
 
 		executor.LogChan <- RunFlowLog{
-			EventId: sc.SceneID,
-			LogType: "Scene_Cancel",
-			Message: "接收到上游取消信号",
-			RunId:   execID,
-			RootErr: nil,
+			EventId:   sc.SceneID,
+			EventName: sc.SceneName,
+			LogType:   "Scene_Cancel",
+			Message:   "接收到上游取消信号",
+			RunId:     execID,
+			RootErr:   nil,
 		}
 		return
 	default:

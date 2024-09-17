@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 )
 
 type StoreAction func(actionKey string, respFields map[string]interface{}) error
@@ -24,7 +25,7 @@ type ApiExecutor struct {
 	ActionMap      map[string]string
 	PreActionsMap  map[string][]string
 	ActionSceneMap map[string]string
-	mu             sync.RWMutex // 添加读写锁
+	// mu             sync.RWMutex // 添加读写锁
 	// Result         map[string]map[string]interface{}
 	Result  sync.Map
 	LogSet  []RunFlowLog
@@ -38,6 +39,7 @@ type ExecutorConf struct {
 
 type SceneConfig struct {
 	SceneID     string
+	SceneName   string
 	Description string
 	Total       int
 	Author      string
@@ -146,7 +148,8 @@ type RunFlowLog struct {
 	// type=scene, 存储sceneID
 	// type=action, 存储actionID
 	// type=task, 存储taskID
-	EventId string `json:"event_id"`
+	EventId   string `json:"event_id"`
+	EventName string `json:"eventName"`
 
 	// 任务实例化ID
 	RunId string `json:"run_id"`

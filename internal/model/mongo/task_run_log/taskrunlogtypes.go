@@ -52,6 +52,7 @@ type TaskLog struct {
 
 type SceneLog struct {
 	SceneID      string      `bson:"sceneId,omitempty" json:"sceneId,omitempty"`
+	SceneName    string      `bson:"sceneName,omitempty" json:"sceneName,omitempty"`
 	Events       []EventMeta `bson:"events,omitempty" json:"events,omitempty"`
 	FinishCount  int         `bson:"finishCount" json:"finishCount"`
 	SuccessCount int         `bson:"successCount" json:"successCount"`
@@ -62,14 +63,15 @@ type SceneLog struct {
 }
 
 type ActionLog struct {
-	SceneID  string                 `bson:"sceneId,omitempty" json:"sceneId,omitempty"`
-	ActionID string                 `bson:"actionId,omitempty" json:"actionId,omitempty"`
-	Events   []EventMeta            `bson:"events,omitempty" json:"events,omitempty"`
-	Request  *RequestMeta           `bson:"request" json:"request"`
-	Response map[string]interface{} `bson:"response" json:"response"`
-	Error    string                 `bson:"error" json:"error"`
-	State    int                    `bson:"state" json:"state"`
-	Duration int                    `bson:"duration" json:"duration"`
+	SceneID    string                 `bson:"sceneId,omitempty" json:"sceneId,omitempty"`
+	ActionID   string                 `bson:"actionId,omitempty" json:"actionId,omitempty"`
+	ActionName string                 `bson:"actionName,omitempty" json:"actionName,omitempty"`
+	Events     []EventMeta            `bson:"events,omitempty" json:"events,omitempty"`
+	Request    *RequestMeta           `bson:"request" json:"request"`
+	Response   map[string]interface{} `bson:"response" json:"response"`
+	Error      string                 `bson:"error" json:"error"`
+	State      int                    `bson:"state" json:"state"`
+	Duration   int                    `bson:"duration" json:"duration"`
 }
 
 type RequestMeta struct {

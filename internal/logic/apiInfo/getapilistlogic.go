@@ -3,14 +3,13 @@ package apiInfo
 import (
 	"context"
 	"encoding/json"
-	"math"
-
-	"github.com/zeromicro/go-zero/core/logx"
-
 	mgoutil "lexa-engine/internal/model/mongo"
 	"lexa-engine/internal/model/mongo/apidetail"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
+	"math"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type GetApiListLogic struct {

@@ -3,6 +3,7 @@ package task_run_log
 import (
 	"context"
 
+	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/mon"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -40,6 +41,7 @@ func (m *customTaskRunLogModel) FindLogRecord(ctx context.Context, execID string
 	var record TaskRunLog
 	if logType == "scene" {
 		if err := m.conn.FindOne(ctx, &record, bson.M{"execId": execID, "logType": "scene", "sceneDetail.sceneId": sceneId}); err != nil {
+			logx.Error(err)
 			return nil, err
 		}
 	}

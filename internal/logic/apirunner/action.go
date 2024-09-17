@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-
 	"fmt"
 	"io"
 	"net/http"
@@ -68,6 +67,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	aec.LogChan <- RunFlowLog{
 		LogType:     "ACTION",
 		EventId:     ac.ActionID,
+		EventName:   ac.ActionName,
 		RunId:       aec.ExecID,
 		SceneID:     ac.SceneID,
 		TriggerNode: "Action_Start",
@@ -80,6 +80,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		aec.LogChan <- RunFlowLog{
 			LogType:     "ACTION",
 			EventId:     ac.ActionID,
+			EventName:   ac.ActionName,
 			RunId:       aec.ExecID,
 			SceneID:     ac.SceneID,
 			TriggerNode: "Action_Validate",
@@ -93,6 +94,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	aec.LogChan <- RunFlowLog{
 		LogType:        "ACTION",
 		EventId:        ac.ActionID,
+		EventName:      ac.ActionName,
 		RunId:          aec.ExecID,
 		SceneID:        ac.SceneID,
 		TriggerNode:    "Action_Validate_Success",
@@ -116,6 +118,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 			aec.LogChan <- RunFlowLog{
 				LogType:     "ACTION",
 				EventId:     ac.ActionID,
+				EventName:   ac.ActionName,
 				RunId:       aec.ExecID,
 				SceneID:     ac.SceneID,
 				TriggerNode: "Action_Process_Depend",
@@ -144,6 +147,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	aec.LogChan <- RunFlowLog{
 		LogType:        "ACTION",
 		EventId:        ac.ActionID,
+		EventName:      ac.ActionName,
 		RunId:          aec.ExecID,
 		SceneID:        ac.SceneID,
 		RequestURL:     ac.getActionPath(),
@@ -160,6 +164,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		aec.LogChan <- RunFlowLog{
 			LogType:        "ACTION",
 			EventId:        ac.ActionID,
+			EventName:      ac.ActionName,
 			RunId:          aec.ExecID,
 			SceneID:        ac.SceneID,
 			RequestURL:     ac.getActionPath(),
@@ -181,6 +186,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		aec.LogChan <- RunFlowLog{
 			LogType:        "ACTION",
 			EventId:        ac.ActionID,
+			EventName:      ac.ActionName,
 			RunId:          aec.ExecID,
 			SceneID:        ac.SceneID,
 			TriggerNode:    "Action_SendRequest",
@@ -201,6 +207,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		LogType:        "ACTION",
 		EventId:        ac.ActionID,
 		RunId:          aec.ExecID,
+		EventName:      ac.ActionName,
 		SceneID:        ac.SceneID,
 		TriggerNode:    "Action_SendRequest_Success",
 		Message:        "Action 请求发送成功",
@@ -219,6 +226,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		aec.LogChan <- RunFlowLog{
 			LogType:        "ACTION",
 			EventId:        ac.ActionID,
+			EventName:      ac.ActionName,
 			RunId:          aec.ExecID,
 			SceneID:        ac.SceneID,
 			TriggerNode:    "Action_ReadResponse",
@@ -239,6 +247,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		aec.LogChan <- RunFlowLog{
 			LogType:        "ACTION",
 			EventId:        ac.ActionID,
+			EventName:      ac.ActionName,
 			RunId:          aec.ExecID,
 			SceneID:        ac.SceneID,
 			TriggerNode:    "Action_ReadResp",
@@ -262,6 +271,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		aec.LogChan <- RunFlowLog{
 			LogType:        "ACTION",
 			EventId:        ac.ActionID,
+			EventName:      ac.ActionName,
 			RunId:          aec.ExecID,
 			SceneID:        ac.SceneID,
 			TriggerNode:    "Action_Transform_Response",
@@ -282,6 +292,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		aec.LogChan <- RunFlowLog{
 			LogType:        "ACTION",
 			EventId:        ac.ActionID,
+			EventName:      ac.ActionName,
 			RunId:          aec.ExecID,
 			SceneID:        ac.SceneID,
 			TriggerNode:    "Action_After_Hook",
@@ -301,6 +312,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	aec.LogChan <- RunFlowLog{
 		LogType:        "ACTION",
 		EventId:        ac.ActionID,
+		EventName:      ac.ActionName,
 		RunId:          aec.ExecID,
 		SceneID:        ac.SceneID,
 		TriggerNode:    "Action_After_Success",
@@ -318,6 +330,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		aec.LogChan <- RunFlowLog{
 			LogType:        "ACTION",
 			EventId:        ac.ActionID,
+			EventName:      ac.ActionName,
 			RunId:          aec.ExecID,
 			SceneID:        ac.SceneID,
 			TriggerNode:    "Action_Expect",
@@ -337,6 +350,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	aec.LogChan <- RunFlowLog{
 		LogType:        "ACTION",
 		EventId:        ac.ActionID,
+		EventName:      ac.ActionName,
 		RunId:          aec.ExecID,
 		SceneID:        ac.SceneID,
 		TriggerNode:    "Action_Expect_Success",
@@ -354,6 +368,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		aec.LogChan <- RunFlowLog{
 			LogType:        "ACTION",
 			EventId:        ac.ActionID,
+			EventName:      ac.ActionName,
 			RunId:          aec.ExecID,
 			SceneID:        ac.SceneID,
 			TriggerNode:    "Action_Ouput_Store",
@@ -373,6 +388,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	aec.LogChan <- RunFlowLog{
 		LogType:        "ACTION",
 		EventId:        ac.ActionID,
+		EventName:      ac.ActionName,
 		RunId:          aec.ExecID,
 		SceneID:        ac.SceneID,
 		TriggerNode:    "Action_Ouput_Store_Success",

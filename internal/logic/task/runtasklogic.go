@@ -4,6 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"lexa-engine/internal/logic/apirunner"
+	mgoutil "lexa-engine/internal/model/mongo"
+	mongo "lexa-engine/internal/model/mongo"
+	"lexa-engine/internal/model/mongo/task_run_log"
+	"lexa-engine/internal/model/mongo/taskinfo"
+	"lexa-engine/internal/svc"
+	"lexa-engine/internal/types"
 	"os"
 	"regexp"
 	"strings"
@@ -12,15 +19,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/zeromicro/go-zero/core/logx"
 	"gopkg.in/yaml.v2"
-
-	"lexa-engine/internal/logic/apirunner"
-	mgoutil "lexa-engine/internal/model/mongo"
-	mongo "lexa-engine/internal/model/mongo"
-	"lexa-engine/internal/model/mongo/task_run_log"
-	"lexa-engine/internal/model/mongo/taskinfo"
-
-	"lexa-engine/internal/svc"
-	"lexa-engine/internal/types"
 )
 
 type RunTaskLogic struct {
@@ -256,7 +254,7 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 		return nil, err
 	}
 
-	exector.Run(context.Background(), l.svcCtx.RedisClient, l.svcCtx.Config.Database.Mongo)
+	exector.Run(context.Background(), req.TaskId, l.svcCtx.RedisClient, l.svcCtx.Config.Database.Mongo)
 
 	return &types.RunTaskResp{
 		Code:    0,
@@ -307,6 +305,7 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 	scenes := make([]*apirunner.SceneConfig, 0)
 	for _, scene := range taskInfo.Scenes {
 		sceneConfig := apirunner.SceneConfig{
+			SceneName:   scene.SceneName,
 			Description: scene.Description,
 			Author:      scene.Author,
 			SceneID:     scene.SceneId,

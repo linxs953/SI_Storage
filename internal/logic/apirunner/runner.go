@@ -4,15 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"lexa-engine/internal/config"
+	mongo "lexa-engine/internal/model/mongo"
+	"lexa-engine/internal/model/mongo/task_run_log"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"lexa-engine/internal/config"
-	mongo "lexa-engine/internal/model/mongo"
-
-	"lexa-engine/internal/model/mongo/task_run_log"
 
 	"github.com/pkg/errors"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -331,17 +329,17 @@ func (runner *ApiExecutor) handleEventRefer(depend ActionDepend) (value string, 
 	return
 }
 
-func (runner *ApiExecutor) Run(ctx context.Context, rdsClient *redis.Redis, mgoConfig config.MongoConfig) {
+func (runner *ApiExecutor) Run(ctx context.Context, taskId string, rdsClient *redis.Redis, mgoConfig config.MongoConfig) {
 	if err := runner.Initialize(rdsClient); err != nil {
 		logx.Error(err)
 		return
 	}
 
 	// 创建task记录
-	go runner.ScheduleTask(ctx, mgoConfig)
+	go runner.ScheduleTask(ctx, taskId, mgoConfig)
 }
 
-func (runner *ApiExecutor) ScheduleTask(ctx context.Context, mgoConfig config.MongoConfig) {
+func (runner *ApiExecutor) ScheduleTask(ctx context.Context, taskId string, mgoConfig config.MongoConfig) {
 	var wg sync.WaitGroup
 	ctx = context.WithValue(ctx, "apirunner", ApiExecutorContext{
 		ExecID:  runner.ExecID,
@@ -355,7 +353,7 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, mgoConfig config.Mo
 	mod := task_run_log.NewTaskRunLogModel(murl, "lct", "TaskRunLog")
 
 	wg.Add(1)
-	go func(mod task_run_log.TaskRunLogModel) {
+	go func(taskId string, mod task_run_log.TaskRunLogModel) {
 		defer func() {
 			close(runner.LogChan)
 			wg.Done()
@@ -384,18 +382,19 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, mgoConfig config.Mo
 				if err != nil {
 					logx.Error(err)
 				}
-				taskLog, err := mod.FindLogRecord(ctx, log.RunId, "", "", "task")
-				if err != nil {
-					logx.Error(err)
-				}
-				if taskLog != nil && err == nil {
+				// taskLog, err := mod.FindLogRecord(ctx, log.RunId, "", "", "task")
+				// if err != nil {
+				// 	logx.Error(err)
+				// }
+				if sceneLog != nil && err == nil {
 					updateSceneRecord(sceneLog, log, mod)
 					continue
 				}
-				createSceneRecord(log, mod)
+				createSceneRecord(taskId, log, mod)
 			}
 
 			if log.LogType == "ACTION" {
+				logx.Error(log.SceneID)
 				taskLog, err := mod.FindLogRecord(ctx, log.RunId, log.SceneID, log.EventId, "action")
 				if err != nil {
 					logx.Error(err)
@@ -409,10 +408,10 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, mgoConfig config.Mo
 					syncSceneRecord(sceneLog, log, mod)
 					continue
 				}
-				createActionRecord(log, mod)
+				createActionRecord(taskId, log, mod)
 			}
 		}
-	}(mod)
+	}(taskId, mod)
 
 	for _, scene := range runner.Cases {
 		wg.Add(1)
@@ -455,6 +454,7 @@ func updateActionRecord(record *task_run_log.TaskRunLog, log RunFlowLog, mod tas
 		Error:       errStr,
 	}
 	record.ActionDetail.Error = errStr
+	record.ActionDetail.ActionName = log.EventName
 	record.ActionDetail.Events = append(record.ActionDetail.Events, event)
 	record.ActionDetail.Request = &task_run_log.RequestMeta{
 		Method:     log.RequestMethod,
@@ -497,17 +497,19 @@ func syncSceneRecord(record *task_run_log.TaskRunLog, log RunFlowLog, mod task_r
 	return nil
 }
 
-func createActionRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
+func createActionRecord(taskId string, log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
 	// 接受ActionStart事件，创建ActionRecord
 	if err := mod.Insert(context.Background(), &task_run_log.TaskRunLog{
 		ExecID:   log.RunId,
+		TaskID:   taskId,
 		LogType:  "action",
 		CreateAt: time.Now(),
 		UpdateAt: time.Now(),
 		ActionDetail: &task_run_log.ActionLog{
-			SceneID:  log.SceneID,
-			ActionID: log.EventId,
-			Events:   []task_run_log.EventMeta{},
+			SceneID:    log.SceneID,
+			ActionID:   log.EventId,
+			ActionName: log.EventName,
+			Events:     []task_run_log.EventMeta{},
 			Request: &task_run_log.RequestMeta{
 				Method:     log.RequestMethod,
 				URL:        log.RequestURL,
@@ -526,7 +528,7 @@ func createActionRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) error 
 	return nil
 }
 
-func createSceneRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
+func createSceneRecord(taskId string, log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
 	// 接受SceneStart事件，创建SceneRecord
 	errStr := ""
 	if log.RootErr != nil {
@@ -534,11 +536,13 @@ func createSceneRecord(log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
 	}
 	if err := mod.Insert(context.Background(), &task_run_log.TaskRunLog{
 		ExecID:   log.RunId,
+		TaskID:   taskId,
 		LogType:  "scene",
 		CreateAt: time.Now(),
 		UpdateAt: time.Now(),
 		SceneDetail: &task_run_log.SceneLog{
-			SceneID: log.EventId,
+			SceneID:   log.EventId,
+			SceneName: log.EventName,
 			Events: []task_run_log.EventMeta{
 				{
 					EventName:   log.TriggerNode,
@@ -580,6 +584,7 @@ func updateSceneRecord(record *task_run_log.TaskRunLog, log RunFlowLog, mod task
 	} else {
 		record.SceneDetail.State = 1
 	}
+	record.SceneDetail.SceneName = log.EventName
 	record.SceneDetail.Events = append(record.SceneDetail.Events, event)
 	record.UpdateAt = time.Now()
 	// 计算时间戳
