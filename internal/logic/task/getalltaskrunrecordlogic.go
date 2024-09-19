@@ -81,6 +81,7 @@ func (l *GetAllTaskRunRecordLogic) GetAllTaskRunRecord(req *types.GetAllTaskRunR
 				// execID 存在
 				scene := make(map[string]interface{})
 				scene["sceneId"] = r.SceneDetail.SceneID
+				scene["sceneName"] = r.SceneDetail.SceneName
 				scene["state"] = r.SceneDetail.State
 				scene["finishCount"] = r.SceneDetail.FinishCount
 				scene["successCount"] = r.SceneDetail.SuccessCount

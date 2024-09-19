@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/zeromicro/go-zero/core/logx"
+
 )
 
 func (sc *SceneConfig) Execute(ctx context.Context, executor *ApiExecutor) {
@@ -33,6 +34,7 @@ func (sc *SceneConfig) Execute(ctx context.Context, executor *ApiExecutor) {
 		// 	FailCount:    0,
 		// 	RootErr:      nil,
 		// }
+		logx.Error(action.Request.Domain)
 		if err := action.TriggerAc(ctx); err != nil {
 			logx.Error(err)
 			sceneRunErr = err

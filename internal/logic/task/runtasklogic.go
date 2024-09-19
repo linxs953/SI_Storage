@@ -270,7 +270,7 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 func (l *RunTaskLogic) CreateTaskRunRecord(taskId string, execId string) (*task_run_log.TaskRunLog, error) {
 	murl := mongo.GetMongoUrl(l.svcCtx.Config.Database.Mongo)
 	taskInfoMod := taskinfo.NewTaskInfoModel(murl, l.svcCtx.Config.Database.Mongo.UseDb, "TaskInfo")
-	mod := task_run_log.NewTaskRunLogModel(murl, "lct", "task_run_log")
+	mod := task_run_log.NewTaskRunLogModel(murl, "lct", "TaskRunLog")
 	taskMeta, err := taskInfoMod.FindByTaskId(context.Background(), taskId)
 	if err != nil {
 		return nil, err
@@ -317,7 +317,6 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 		// 构建动作配置
 		actions := make([]apirunner.Action, 0)
 		for _, action := range scene.Actions {
-
 			// 构建Action dependency
 			actionDepends := make([]apirunner.ActionDepend, 0)
 			for _, dep := range action.Dependency {

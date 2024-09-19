@@ -596,6 +596,7 @@ func (ac *Action) expectResp(respFields map[string]interface{}) error {
 			}
 
 			assertOk, err := assert(v, ae.Desire, ae.DataType, ae.Operation)
+			logx.Error(err)
 			if err != nil {
 				return errors.Wrap(err, fmt.Sprintf("断言 [%s] %s [%s] 发生错误", ae.FieldName, ae.Operation, ae.Desire))
 			}
@@ -642,6 +643,7 @@ func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 
 	// 构建HTTP请求（伪代码）
 	url := fmt.Sprintf("https://%s%s?", ac.Request.Domain, ac.Request.Path)
+	logx.Error(url)
 	if len(ac.Request.Params) == 0 {
 		url = strings.TrimRight(url, "?")
 	}

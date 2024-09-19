@@ -9,13 +9,6 @@ import (
 	"strconv"
 	"strings"
 	// "os"
-
-	"github.com/google/uuid"
-	"github.com/zeromicro/go-zero/core/conf"
-	"github.com/zeromicro/go-zero/core/logx"
-	"github.com/zeromicro/go-zero/rest"
-	"gopkg.in/yaml.v3"
-
 	"lexa-engine/internal/config"
 	"lexa-engine/internal/handler"
 	"lexa-engine/internal/logic/task"
@@ -23,6 +16,13 @@ import (
 	"lexa-engine/internal/model/mongo/apidetail"
 	"lexa-engine/internal/mqs"
 	"lexa-engine/internal/svc"
+
+	"github.com/google/uuid"
+	"github.com/zeromicro/go-zero/core/conf"
+	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/rest"
+	"gopkg.in/yaml.v3"
+
 )
 
 var configFile = flag.String("f", "etc/lexa-engine-api.yaml", "the config file")
@@ -83,7 +83,7 @@ func startHttpServer() {
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
 
-	server := rest.MustNewServer(c.RestConf, rest.WithCors("http://47.120.49.73:5173"))
+	server := rest.MustNewServer(c.RestConf, rest.WithCors("http://47.120.49.73:5173", "http://localhost:5173"))
 	defer server.Stop()
 
 	svcCtx := svc.NewServiceContext(c)
