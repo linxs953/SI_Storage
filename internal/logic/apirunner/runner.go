@@ -204,6 +204,7 @@ func (runner *ApiExecutor) handleSceneRefer(depend ActionDepend, action *Action)
 	// 在任务创建或者编辑之后，场景依赖关系已经生成，这个方法主要是验证引用关系是否正常
 	// 1. 场景引用表达式： [sceneInstanceId].[actionInstanceId]
 	// 2. dataKey照旧，不做处理
+
 	if depend.Type != "1" {
 		return errors.New("依赖的数据源不是场景")
 	}
@@ -235,8 +236,13 @@ func (runner *ApiExecutor) handleSceneRefer(depend ActionDepend, action *Action)
 
 	if runner.ActionSceneMap[relateAction] == runner.ActionSceneMap[action.ActionID] {
 		// 引用的action和当前action同属同个场景
+		logx.Error(action.ActionID)
+		logx.Error(relateAction)
 		preAction := runner.PreActionsMap[action.ActionID]
 		for pidx, pre := range preAction {
+			if pre == relateAction {
+				break
+			}
 			if pre != relateAction && pidx == len(preAction)-1 {
 				return errors.New("依赖Action 不在当前Action的前置列表中")
 			}
@@ -318,6 +324,8 @@ func (runner *ApiExecutor) fetchDataWithRedis(rdsClient *redis.Redis, resultType
 		// 能运行到这里，表明是最后一个key
 		value = data[key]
 	}
+	
+	logx.Errorf("%s,%s, %v",key, dataKey,value)
 
 	return value.(string), nil
 }

@@ -604,37 +604,6 @@ func (ac *Action) expectResp(respFields map[string]interface{}) error {
 				return errors.Wrap(rootErr, "断言失败")
 			}
 		}
-		// if ae.Type == "http" {
-		// 	if ae.FieldName == "duration" {
-		// 		if ac.Duration == 0 {
-		// 			ac.Duration = int(ac.FinishTime.Sub(ac.StartTime).Milliseconds())
-		// 		}
-		// 		switch ae.Operation {
-		// 		case "gt":
-		// 			if ac.Duration > ae.Desire.(int) {
-		// 				return nil
-		// 			}
-		// 			return fmt.Errorf("duration %d is not greater than %d", ac.Duration, ae.Desire)
-		// 		case "lt":
-		// 			if ac.Duration < ae.Desire.(int) {
-		// 				return nil
-		// 			}
-		// 			return fmt.Errorf("duration %d is not less than %d", ac.Duration, ae.Desire)
-		// 		case "gte":
-		// 			if ac.Duration >= ae.Desire.(int) {
-		// 				return nil
-		// 			}
-		// 			return fmt.Errorf("duration %d is not greater than or equal to %d", ac.Duration, ae.Desire)
-		// 		case "lte":
-		// 			if ac.Duration <= ae.Desire.(int) {
-		// 				return nil
-		// 			}
-		// 			return fmt.Errorf("duration %d is not less than or equal to %d", ac.Duration, ae.Desire)
-		// 		default:
-		// 			return fmt.Errorf("unknown operation %s", ae.Operation)
-		// 		}
-		// 	}
-		// }
 	}
 	return nil
 }

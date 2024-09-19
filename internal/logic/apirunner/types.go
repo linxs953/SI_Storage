@@ -2,10 +2,11 @@ package apirunner
 
 import (
 	"net/http"
-	"strings"
 	"sync"
 	"time"
-
+	"fmt"
+	"strings"
+	// "github.com/zeromicro/go-zero/core/logx"
 	"github.com/google/uuid"
 
 )
@@ -187,21 +188,24 @@ func NewApiExecutor(scenes []*SceneConfig) (*ApiExecutor, error) {
 	sceneActionMap := make(map[string]string)
 	sceneMap := make(map[string]string)
 	actionMap := make(map[string]string)
+	sceneIterMap := make(map[string]string)
 	for sidx, scene := range scenes {
-		// 生成实例化后的SceneID
-		// scenes[sidx].SceneID = uuid.New().String()
-		var preActions []string
+		// var preActions []string
+		// var preActionsStr string
 		sceneMap[scene.SceneID] = scene.Description
+		sceneIterMap[scene.SceneID] = ""
 		for aidx, action := range scene.Actions {
-			// 生成实例化的ActionID
-			// scenes[sidx].Actions[aidx].ActionID = uuid.New().String()
+			// logx.Errorf("当前Action, %s", action.ActionName)
 			scenes[sidx].Actions[aidx].Output.ExecID = execID
-
-			// 这里把preActions重新构建新对象
-			preActionMap[action.ActionID] = strings.Split(strings.Join(preActions, ","), ",")
-			preActions = append(preActions, action.ActionID)
+			preActionMap[action.ActionID] = strings.Split(sceneIterMap[scene.SceneID],",")
+			if sceneIterMap[scene.SceneID] == "" {
+				sceneIterMap[scene.SceneID] = action.ActionID
+			} else {
+				sceneIterMap[scene.SceneID] += fmt.Sprintf(",%s",action.ActionID)
+			}
 			sceneActionMap[action.ActionID] = scene.SceneID
 			actionMap[action.ActionID] = action.ActionName
+			// logx.Errorf("当前Action的前置, %v", preActionMap[action.ActionID])
 
 		}
 	}

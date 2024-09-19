@@ -83,7 +83,7 @@ func startHttpServer() {
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
 
-	server := rest.MustNewServer(c.RestConf, rest.WithCors("http://localhost:5173"))
+	server := rest.MustNewServer(c.RestConf, rest.WithCors("http://47.120.49.73:5173"))
 	defer server.Stop()
 
 	svcCtx := svc.NewServiceContext(c)

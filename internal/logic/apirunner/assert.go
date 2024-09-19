@@ -1,30 +1,42 @@
 package apirunner
 
-import "fmt"
+import (
+	"fmt"
+	// "strconv"
+	// "reflect"
+		"github.com/zeromicro/go-zero/core/logx"
+)
 
 func assert(value interface{}, desire interface{}, datatype string, operation string) (bool, error) {
 	switch datatype {
-	case "int":
+	case "integer":
 		{
-			intV, ok := value.(int)
-			if !ok {
-				return false, fmt.Errorf("resp field %s is not int", value)
-			}
-			intDesire, ok := desire.(int)
-			if !ok {
-				return false, fmt.Errorf("desire %s is not int", value)
-			}
-			return assertInt(intV, intDesire, operation), nil
+			// vv := reflect.ValueOf(value)
+			// var intVal int
+			// if vv.Kind() == reflect.Float64 {
+			// 	intVal = int(vv.Float())
+			// } else if vv.Kind() == reflect.Int {
+			// 	intVal = int(vv.Int())
+			// } else {
+			// 	return false, fmt.Errorf("resp field %v is not int, getType: %s", value,reflect.TypeOf(value))
+			// }
+			intVal := fmt.Sprintf("%v",value)
+			intDesire := fmt.Sprintf("%v",desire)
+			logx.Error(intVal,intDesire)
+			// if !ok {
+			// 	return false, fmt.Errorf("desire %v is not int", value)
+			// }
+			return assertString(intVal, intDesire, operation), nil
 		}
 	case "string":
 		{
 			strV, ok := value.(string)
 			if !ok {
-				return false, fmt.Errorf("resp field %s is not string", value)
+				return false, fmt.Errorf("resp field %v is not string", value)
 			}
 			strDesire, ok := desire.(string)
 			if !ok {
-				return false, fmt.Errorf("desire %s is not string", value)
+				return false, fmt.Errorf("desire %v is not string", value)
 			}
 			return assertString(strV, strDesire, operation), nil
 		}
@@ -32,11 +44,11 @@ func assert(value interface{}, desire interface{}, datatype string, operation st
 		{
 			boolV, ok := value.(bool)
 			if !ok {
-				return false, fmt.Errorf("resp field %s is not bool", value)
+				return false, fmt.Errorf("resp field %v is not bool", value)
 			}
 			boolDesire, ok := desire.(bool)
 			if !ok {
-				return false, fmt.Errorf("desire %s is not bool", value)
+				return false, fmt.Errorf("desire %v is not bool", value)
 			}
 			return assertBool(boolV, boolDesire, operation), nil
 		}
@@ -44,17 +56,17 @@ func assert(value interface{}, desire interface{}, datatype string, operation st
 		{
 			arrayV, ok := value.([]interface{})
 			if !ok {
-				return false, fmt.Errorf("resp field %s is not int", value)
+				return false, fmt.Errorf("resp field %v is not int", value)
 			}
 			desireInt, ok := desire.(int)
 			if !ok {
-				return false, fmt.Errorf("desire %s is not int", value)
+				return false, fmt.Errorf("desire %v is not int", value)
 			}
 			return assertArrayLen(arrayV, desireInt, operation), nil
 		}
 	default:
 		{
-			return false, fmt.Errorf("datatype %s is not supported", datatype)
+			return false, fmt.Errorf("datatype %v is not supported", datatype)
 		}
 	}
 }
@@ -85,7 +97,7 @@ func assertBool(value bool, desire bool, operation string) bool {
 
 func assertInt(value int, desire int, operation string) bool {
 	switch operation {
-	case "eq":
+	case "equal":
 		return value == desire
 	case "gt":
 		return value > desire
