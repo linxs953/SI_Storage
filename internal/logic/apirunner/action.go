@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -114,7 +115,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		if depend.Type != "1" {
 			continue
 		}
-		if err = ac.handleActionDepend(fetchDependency, fmt.Sprintf("%s.%s", aec.ExecID, depend.ActionKey)); err != nil {
+		if err = ac.handleActionDepend(fetchDependency, fmt.Sprintf("%s.%s", aec.ExecID, depend.ActionKey), depend); err != nil {
 			aec.LogChan <- RunFlowLog{
 				LogType:     "ACTION",
 				EventId:     ac.ActionID,
@@ -432,135 +433,206 @@ func (ac *Action) validate() error {
 	return nil
 }
 
+func setPayloadField(payload map[string]interface{}, key string, value interface{}) (map[string]interface{}, error) {
+	current := payload
+	for pidx, part := range strings.Split(key, ".") {
+		if pidx == len(strings.Split(key, "."))-1 {
+			current[part] = value
+		} else {
+			if next, ok := current[part]; ok {
+				if nextMap, ok := next.(map[string]interface{}); ok {
+					current = nextMap
+				} else {
+					return nil, fmt.Errorf("key ['%s'] already exists but is not a map", key)
+				}
+			} else {
+				return nil, fmt.Errorf("key ['%s'] not exist", key)
+			}
+		}
+	}
+	newPayload := current
+	return newPayload, nil
+}
+
+func extractFromResp(resp map[string]interface{}, dataKey string) (interface{}, error) {
+	// current := resp
+	var current interface{}
+	current = resp
+	logx.Error(dataKey)
+	for _, part := range strings.Split(dataKey, ".") {
+		if index, err := strconv.Atoi(part); err == nil {
+			// 处理数组索引
+			if arr, ok := current.([]interface{}); ok {
+				if index >= 0 && index < len(arr) {
+					current = arr[index]
+				} else {
+					return nil, fmt.Errorf("数组索引 ['%d'] 越界", index)
+				}
+			} else {
+				return nil, fmt.Errorf("无法处理类型 %T，期望数组", current)
+			}
+		} else {
+			// 处理map键
+			if m, ok := current.(map[string]interface{}); ok {
+				if value, exists := m[part]; exists {
+					current = value
+				} else {
+					return nil, fmt.Errorf("键 ['%s'] 不存在, value: %v", dataKey, m)
+				}
+			} else {
+				return nil, fmt.Errorf("无法处理类型 %T，期望map", current)
+			}
+		}
+	}
+	return current, nil
+}
+
 // Action执行阶段，只有场景依赖数据是需要动态获取的，所以这个时候只需要处理depend.type=1的数据即可
-func (ac *Action) handleActionDepend(fetch FetchDepend, key string) error {
+func (ac *Action) handleActionDepend(fetch FetchDepend, key string, depend ActionDepend) error {
 	var err error
 
 	// 根据获取的场景依赖数据，设置payload
-	setPayloadField := func(payload map[string]interface{}, key string, value interface{}) (map[string]interface{}, error) {
-		current := payload
-		for pidx, part := range strings.Split(key, ".") {
-			if pidx == len(strings.Split(key, "."))-1 {
-				current[part] = value
-			} else {
-				if next, ok := current[part]; ok {
-					if nextMap, ok := next.(map[string]interface{}); ok {
-						current = nextMap
-					} else {
-						return nil, fmt.Errorf("key ['%s'] already exists but is not a map", key)
-					}
-				} else {
-					return nil, fmt.Errorf("key ['%s'] not exist", key)
-				}
-			}
-		}
-		newPayload := current
-		return newPayload, nil
-	}
+	// setPayloadField := func(payload map[string]interface{}, key string, value interface{}) (map[string]interface{}, error) {
+	// 	current := payload
+	// 	for pidx, part := range strings.Split(key, ".") {
+	// 		if pidx == len(strings.Split(key, "."))-1 {
+	// 			current[part] = value
+	// 		} else {
+	// 			if next, ok := current[part]; ok {
+	// 				if nextMap, ok := next.(map[string]interface{}); ok {
+	// 					current = nextMap
+	// 				} else {
+	// 					return nil, fmt.Errorf("key ['%s'] already exists but is not a map", key)
+	// 				}
+	// 			} else {
+	// 				return nil, fmt.Errorf("key ['%s'] not exist", key)
+	// 			}
+	// 		}
+	// 	}
+	// 	newPayload := current
+	// 	return newPayload, nil
+	// }
 
 	// 获取依赖之后，根据dataKey提取具体的值
-	extractFromResp := func(resp map[string]interface{}, key string) (interface{}, error) {
-		current := resp
-		for pidx, part := range strings.Split(key, ".") {
-			if pidx == len(strings.Split(key, "."))-1 {
-				return current[part], nil
-			} else {
-				if next, ok := current[part]; ok {
-					if nextMap, ok := next.(map[string]interface{}); ok {
-						current = nextMap
-					} else {
-						return nil, fmt.Errorf("key ['%s'] already exists but is not a map", key)
-					}
+	// extractFromResp := func(resp map[string]interface{}, dataKey string) (interface{}, error) {
+	// 	// current := resp
+	// 	var current interface{}
+	// 	current = resp
+	// 	logx.Error(dataKey)
+	// 	for _, part := range strings.Split(dataKey, ".") {
+	// 		if index, err := strconv.Atoi(part); err == nil {
+	// 			// 处理数组索引
+	// 			if arr, ok := current.([]interface{}); ok {
+	// 				if index >= 0 && index < len(arr) {
+	// 					current = arr[index]
+	// 				} else {
+	// 					return nil, fmt.Errorf("数组索引 ['%d'] 越界", index)
+	// 				}
+	// 			} else {
+	// 				return nil, fmt.Errorf("无法处理类型 %T，期望数组", current)
+	// 			}
+	// 		} else {
+	// 			// 处理map键
+	// 			if m, ok := current.(map[string]interface{}); ok {
+	// 				if value, exists := m[part]; exists {
+	// 					current = value
+	// 				} else {
+	// 					return nil, fmt.Errorf("键 ['%s'] 不存在, value: %v", dataKey, m)
+	// 				}
+	// 			} else {
+	// 				return nil, fmt.Errorf("无法处理类型 %T，期望map", current)
+	// 			}
+	// 		}
+	// 	}
+	// 	return current, nil
+	// }
+
+	// for _, depend := range ac.Request.Dependency {
+	// logx.Error(depend)
+	switch depend.Refer.Type {
+	case "headers":
+		{
+			if depend.Type == "1" {
+				actionResp := fetch(key)
+				v, err := extractFromResp(actionResp, depend.DataKey)
+				if err != nil {
+					return err
+				}
+				data, ok := v.(string)
+				if !ok {
+					return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
+				}
+				if depend.Refer.Target == "Authorization" {
+					ac.Request.Headers["Authorization"] = fmt.Sprintf("Bearer %s", data)
 				} else {
-					return nil, fmt.Errorf("key ['%s'] not exist", key)
+					ac.Request.Headers[depend.Refer.Target] = data
 				}
 			}
+			break
 		}
-		return nil, fmt.Errorf("key ['%s'] not exist", key)
-	}
+	case "payload":
+		{
+			if depend.Type == "1" {
+				runId := strings.Split(key, ".")[0]
+				referKey := fmt.Sprintf("%s.%s", runId, depend.ActionKey)
+				actionResp := fetch(referKey)
+				logx.Error(actionResp)
+				logx.Error(depend.DataKey)
+				v, err := extractFromResp(actionResp, depend.DataKey)
+				if err != nil {
+					return err
+				}
+				data, ok := v.(string)
+				if !ok {
+					return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
+				}
 
-	for _, depend := range ac.Request.Dependency {
-		// logx.Error(depend)
-		switch depend.Refer.Type {
-		case "headers":
-			{
-				if depend.Type == "1" {
-					actionResp := fetch(key)
-					v, err := extractFromResp(actionResp, depend.DataKey)
-					if err != nil {
-						return err
-					}
-					data, ok := v.(string)
-					if !ok {
-						return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
-					}
-					if depend.Refer.Target == "Authorization" {
-						ac.Request.Headers["Authorization"] = fmt.Sprintf("Bearer %s", data)
-					} else {
-						ac.Request.Headers[depend.Refer.Target] = data
-					}
+				// 这里需要处理payload字段是多级的情况
+				newPayload, err := setPayloadField(ac.Request.Payload, depend.Refer.Target, data)
+				if err != nil {
+					return err
+				} else {
+					ac.Request.Payload = newPayload
 				}
-				break
 			}
-		case "payload":
-			{
-				if depend.Type == "1" {
-					actionResp := fetch(key)
-					v, err := extractFromResp(actionResp, depend.DataKey)
-					if err != nil {
-						return err
-					}
-					data, ok := v.(string)
-					if !ok {
-						return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
-					}
-
-					// 这里需要处理payload字段是多级的情况
-					newPayload, err := setPayloadField(ac.Request.Payload, depend.Refer.Target, data)
-					if err != nil {
-						return err
-					} else {
-						ac.Request.Payload = newPayload
-					}
+			break
+		}
+	case "path":
+		{
+			// path大概率是没有多级嵌套参数的情况
+			if depend.Type == "1" {
+				actionResp := fetch(key)
+				v, err := extractFromResp(actionResp, depend.DataKey)
+				if err != nil {
+					return err
 				}
-				break
-			}
-		case "path":
-			{
-				// path大概率是没有多级嵌套参数的情况
-				if depend.Type == "1" {
-					actionResp := fetch(key)
-					v, err := extractFromResp(actionResp, depend.DataKey)
-					if err != nil {
-						return err
-					}
-					data, ok := v.(string)
-					if !ok {
-						return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
-					}
-					ac.Request.Path = strings.ReplaceAll(ac.Request.Path, depend.Refer.Target, data)
+				data, ok := v.(string)
+				if !ok {
+					return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
 				}
-				break
+				ac.Request.Path = strings.ReplaceAll(ac.Request.Path, depend.Refer.Target, data)
 			}
-		case "query":
-			{
-				// url参数大概率不会有多级嵌套参数的情况
-				if depend.Type == "1" {
-					actionResp := fetch(key)
-					v, err := extractFromResp(actionResp, depend.DataKey)
-					if err != nil {
-						return err
-					}
-					data, ok := v.(string)
-					if !ok {
-						return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
-					}
-					ac.Request.Params[depend.Refer.Target] = data
+			break
+		}
+	case "query":
+		{
+			// url参数大概率不会有多级嵌套参数的情况
+			if depend.Type == "1" {
+				actionResp := fetch(key)
+				v, err := extractFromResp(actionResp, depend.DataKey)
+				if err != nil {
+					return err
 				}
-				break
+				data, ok := v.(string)
+				if !ok {
+					return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
+				}
+				ac.Request.Params[depend.Refer.Target] = data
 			}
+			break
 		}
 	}
+	// }
 	return err
 }
 

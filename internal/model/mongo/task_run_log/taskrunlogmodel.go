@@ -72,6 +72,8 @@ func (m *customTaskRunLogModel) FindAllSceneRecord(ctx context.Context, execId s
 
 func (m *customTaskRunLogModel) FindTaskRunRecord(ctx context.Context, taskId string) ([]*TaskRunLog, error) {
 	var recordList []*TaskRunLog
+	sortOptions := options.Find()
+	sortOptions.SetSort(bson.D{{Key: "createAt", Value: -1}})
 	if err := m.conn.Find(ctx, &recordList, bson.M{"taskId": taskId}); err != nil {
 		return nil, err
 	}
