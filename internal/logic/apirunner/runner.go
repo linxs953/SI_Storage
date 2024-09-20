@@ -21,6 +21,7 @@ func (runner *ApiExecutor) Initialize(rdsClient *redis.Redis) error {
 	if err := runner.parametrization(rdsClient); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -75,6 +76,7 @@ func (runner *ApiExecutor) filledPayload(depend ActionDepend, action *Action, rd
 func (runner *ApiExecutor) filledPath(depend ActionDepend, action *Action, rdsClient *redis.Redis) error {
 	var err error
 	if depend.Refer.Type == "path" {
+		logx.Error(depend)
 		if err = runner.handleActionRefer(depend, action, rdsClient, "path"); err != nil {
 			return err
 		}
@@ -117,6 +119,18 @@ func (runner *ApiExecutor) handleActionRefer(depend ActionDepend, action *Action
 		return newPayload, nil
 	}
 
+	actionIdx := 0
+	sceneIdx := 0
+	for sdx, scene := range runner.Cases {
+		for idx, ac := range scene.Actions {
+			if action.ActionID == ac.ActionID {
+				sceneIdx = sdx
+				actionIdx = idx
+				break
+			}
+		}
+	}
+
 	if depend.Type == "1" {
 		// 数据源=场景，验证依赖引用关系是否合法
 		err = runner.handleSceneRefer(depend, action)
@@ -136,6 +150,7 @@ func (runner *ApiExecutor) handleActionRefer(depend ActionDepend, action *Action
 		case "headers":
 			{
 				action.Request.Headers[depend.Refer.Target] = val
+				runner.Cases[sceneIdx].Actions[actionIdx].Request.Headers[depend.Refer.Target] = val
 				break
 			}
 		case "payload":
@@ -145,16 +160,21 @@ func (runner *ApiExecutor) handleActionRefer(depend ActionDepend, action *Action
 					return err
 				}
 				action.Request.Payload = newPayload
+				runner.Cases[sceneIdx].Actions[actionIdx].Request.Payload = newPayload
 				break
 			}
 		case "path":
 			{
+				// logx.Errorf("[runner] 执行action path的参数化, actionPath=%s, 替换值=%s, 最新值=%s", action.Request.Path, depend.Refer.Target, val)
 				action.Request.Path = strings.Replace(action.Request.Path, depend.Refer.Target, val, -1)
+				runner.Cases[sceneIdx].Actions[actionIdx].Request.Path = action.Request.Path
+				// logx.Error(runner.Cases[sceneIdx].Actions[actionIdx].Request.Path)
 				break
 			}
 		case "query":
 			{
-				action.Request.Params[depend.Refer.Target] = val
+				// action.Request.Params[depend.Refer.Target] = val
+				runner.Cases[sceneIdx].Actions[actionIdx].Request.Params[depend.Refer.Target] = val
 				break
 			}
 		}
@@ -324,8 +344,8 @@ func (runner *ApiExecutor) fetchDataWithRedis(rdsClient *redis.Redis, resultType
 		// 能运行到这里，表明是最后一个key
 		value = data[key]
 	}
-	
-	logx.Errorf("%s,%s, %v",key, dataKey,value)
+
+	logx.Errorf("%s,%s, %v", key, dataKey, value)
 
 	return value.(string), nil
 }

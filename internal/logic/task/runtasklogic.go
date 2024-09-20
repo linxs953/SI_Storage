@@ -248,6 +248,8 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 	}
 	logx.Error(string(exectorBts))
 
+	// exector.Initialize(l.svcCtx.RedisClient)
+
 	// 创建任务执行记录
 	if _, err := l.CreateTaskRunRecord(req.TaskId, exector.ExecID); err != nil {
 		logx.Error(err)
