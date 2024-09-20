@@ -6,6 +6,7 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/mon"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var _ TaskRunLogModel = (*customTaskRunLogModel)(nil)
@@ -61,7 +62,9 @@ func (m *customTaskRunLogModel) FindLogRecord(ctx context.Context, execID string
 
 func (m *customTaskRunLogModel) FindAllSceneRecord(ctx context.Context, execId string, sceneId string) ([]*TaskRunLog, error) {
 	var sceneRecords []*TaskRunLog
-	if err := m.conn.Find(ctx, &sceneRecords, bson.M{"execId": execId, "logType": "scene", "sceneDetail.sceneId": sceneId}); err != nil {
+	sortOptions := options.Find()
+	sortOptions.SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	if err := m.conn.Find(ctx, &sceneRecords, bson.M{"execId": execId, "logType": "scene", "sceneDetail.sceneId": sceneId}, sortOptions); err != nil {
 		return nil, err
 	}
 	return sceneRecords, nil
