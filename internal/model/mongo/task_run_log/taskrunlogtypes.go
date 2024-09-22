@@ -31,15 +31,18 @@ import (
 // }
 
 type TaskRunLog struct {
-	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-	TaskID       string             `bson:"taskId,omitempty" json:"taskId,omitempty"`
-	ExecID       string             `bson:"execId,omitempty" json:"execId,omitempty"`
-	LogType      string             `bson:"logType,omitempty" json:"logType,omitempty"`
-	TaskDetail   *TaskLog           `bson:"taskDetail,omitempty" json:"taskDetail,omitempty"`
-	SceneDetail  *SceneLog          `bson:"sceneDetail,omitempty" json:"sceneDetail,omitempty"`
-	ActionDetail *ActionLog         `bson:"actionDetail,omitempty" json:"actionDetail,omitempty"`
-	CreateAt     time.Time          `bson:"createAt,omitempty" json:"createAt,omitempty"`
-	UpdateAt     time.Time          `bson:"updateAt,omitempty" json:"updateAt,omitempty"`
+	ID      primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	TaskID  string             `bson:"taskId,omitempty" json:"taskId,omitempty"`
+	ExecID  string             `bson:"execId,omitempty" json:"execId,omitempty"`
+	LogType string             `bson:"logType,omitempty" json:"logType,omitempty"`
+	// TaskName       string             `bson:"taskName,omitempty" json:"taskName,omitempty"`
+	// TaskSceneCount int                `bson:"taskSceneCount" json:"taskSceneCount"`
+	// TaskState      int                `bson:"taskState" json:"taskState"`
+	TaskDetail   *TaskLog   `bson:"taskDetail,omitempty" json:"taskDetail,omitempty"`
+	SceneDetail  *SceneLog  `bson:"sceneDetail,omitempty" json:"sceneDetail,omitempty"`
+	ActionDetail *ActionLog `bson:"actionDetail,omitempty" json:"actionDetail,omitempty"`
+	CreateAt     time.Time  `bson:"createAt,omitempty" json:"createAt,omitempty"`
+	UpdateAt     time.Time  `bson:"updateAt,omitempty" json:"updateAt,omitempty"`
 }
 
 type TaskLog struct {

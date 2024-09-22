@@ -18,6 +18,7 @@ type (
 		FindLogRecord(ctx context.Context, execID string, sceneId string, actionId string, logType string) (*TaskRunLog, error)
 		FindTaskRunRecord(ctx context.Context, taskId string) ([]*TaskRunLog, error)
 		FindAllSceneRecord(ctx context.Context, execId string, sceneId string) ([]*TaskRunLog, error)
+		FindAllTaskRecords(ctx context.Context, taskId string) ([]*TaskRunLog, error)
 		taskRunLogModel
 	}
 
@@ -74,7 +75,17 @@ func (m *customTaskRunLogModel) FindTaskRunRecord(ctx context.Context, taskId st
 	var recordList []*TaskRunLog
 	sortOptions := options.Find()
 	sortOptions.SetSort(bson.D{{Key: "createAt", Value: -1}})
-	if err := m.conn.Find(ctx, &recordList, bson.M{"taskId": taskId}); err != nil {
+	if err := m.conn.Find(ctx, &recordList, bson.M{"execId": taskId}); err != nil {
+		return nil, err
+	}
+	return recordList, nil
+}
+
+func (m *customTaskRunLogModel) FindAllTaskRecords(ctx context.Context, taskId string) ([]*TaskRunLog, error) {
+	var recordList []*TaskRunLog
+	sortOptions := options.Find()
+	sortOptions.SetSort(bson.D{{Key: "createAt", Value: -1}}) // 使用降序排列
+	if err := m.conn.Find(ctx, &recordList, bson.M{"taskId": taskId, "logType": "task"}, sortOptions); err != nil {
 		return nil, err
 	}
 	return recordList, nil

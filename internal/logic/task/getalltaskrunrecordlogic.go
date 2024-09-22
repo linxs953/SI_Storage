@@ -7,6 +7,7 @@ import (
 	"lexa-engine/internal/model/mongo/taskinfo"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
+	"strconv"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -27,15 +28,10 @@ func NewGetAllTaskRunRecordLogic(ctx context.Context, svcCtx *svc.ServiceContext
 
 func (l *GetAllTaskRunRecordLogic) GetAllTaskRunRecord(req *types.GetAllTaskRunRecordDto) (resp *types.GetAllTaskRunRecordResp, err error) {
 	resp = &types.GetAllTaskRunRecordResp{
-		Code:       0,
-		Message:    "success",
-		TaskName:   "",
-		TaskID:     "",
-		Author:     "",
-		SceneCount: 0,
-		CreateTime: "",
-		UpdateTime: "",
-		Data:       make(map[string][]map[string]interface{}),
+		Code:     0,
+		Message:  "success",
+		TaskMeta: types.TaskMeta{},
+		TaskRun:  []types.TaskRecord{},
 	}
 	murl := mgo.GetMongoUrl(l.svcCtx.Config.Database.Mongo)
 	taskLogModel := task_run_log.NewTaskRunLogModel(murl, l.svcCtx.Config.Database.Mongo.UseDb, "TaskRunLog")
@@ -44,60 +40,110 @@ func (l *GetAllTaskRunRecordLogic) GetAllTaskRunRecord(req *types.GetAllTaskRunR
 	if err != nil {
 		return nil, err
 	}
-	resp.TaskName = taskInfo.TaskName
-	resp.TaskID = taskInfo.TaskID
-	resp.Author = taskInfo.Author
-	resp.SceneCount = len(taskInfo.Scenes)
-	resp.CreateTime = taskInfo.CreateAt.Format("2006-01-02 15:04:05")
-	resp.UpdateTime = taskInfo.UpdateAt.Format("2006-01-02 15:04:05")
-	taskRunRecord, err := taskLogModel.FindTaskRunRecord(l.ctx, req.TaskId)
+
+	recordList, err := getAllTasks(l.ctx, taskLogModel, req.TaskId)
+	if err != nil {
+		return nil, err
+	}
+
+	var data []map[string]interface{}
+	for _, r := range recordList {
+		sceneDetails, err := getSceneDetail(l.ctx, taskLogModel, r.ExecID)
+		if err != nil {
+			return nil, err
+		}
+
+		data = append(data, map[string]interface{}{
+			"taskName":     r.TaskName,
+			"execId":       r.ExecID,
+			"taskId":       taskInfo.TaskID,
+			"sceneCount":   r.SceneCount,
+			"state":        r.State,
+			"sceneDetails": sceneDetails,
+			"createTime":   r.CreateTime,
+			"updateTime":   r.UpdateTime,
+		})
+	}
+
+	// 将 data 中的每个 map 转换为 types.TaskRecord
+	var taskRecords []types.TaskRecord
+	for _, item := range data {
+		state, err := strconv.Atoi(item["state"].(string))
+		if err != nil {
+			return nil, err
+		}
+		finishTime := item["updateTime"].(string)
+		if state == 0 {
+			finishTime = ""
+		}
+		taskRecord := types.TaskRecord{
+			RunId:        item["execId"].(string),
+			TaskId:       item["taskId"].(string),
+			State:        state,
+			SceneRecords: item["sceneDetails"].([]map[string]interface{}),
+			CreateTime:   item["createTime"].(string),
+			FinishTime:   finishTime,
+		}
+		taskRecords = append(taskRecords, taskRecord)
+	}
+
+	resp.TaskMeta = types.TaskMeta{
+		TaskName:   taskInfo.TaskName,
+		TaskID:     taskInfo.TaskID,
+		Author:     taskInfo.Author,
+		SceneCount: len(taskInfo.Scenes),
+		CreateTime: taskInfo.CreateAt.Format("2006-01-02 15:04:05"),
+		UpdateTime: taskInfo.UpdateAt.Format("2006-01-02 15:04:05"),
+	}
+
+	resp.TaskRun = taskRecords
+	return
+}
+
+type RecordMeta struct {
+	TaskId     string `json:"taskId"`
+	ExecID     string `json:"execId"`
+	TaskName   string `json:"taskName"`
+	SceneCount int    `json:"sceneCount"`
+	State      string `json:"state"`
+	CreateTime string `json:"createTime"`
+	UpdateTime string `json:"updateTime"`
+}
+
+func getSceneDetail(ctx context.Context, taskLogModel task_run_log.TaskRunLogModel, execId string) ([]map[string]interface{}, error) {
+	taskRunRecord, err := taskLogModel.FindTaskRunRecord(ctx, execId)
 	if err != nil {
 		return nil, err
 	}
 
 	// 根据 record 的 sceneDetail 来判断 task 的状态
 	// 使用map来聚合相同execID的记录
-	execMap := make(map[string][]map[string]interface{})
+	execMap := make(map[string]string)
+	var sceneDetails []map[string]interface{}
 
 	for _, r := range taskRunRecord {
-		execID := r.ExecID
-		logx.Error(r)
 		if r.LogType == "scene" {
-			if _, exists := execMap[execID]; !exists {
-				execMap[execID] = []map[string]interface{}{
-					{
-						"execId":        r.ExecID,
-						"sceneId":       r.SceneDetail.SceneID,
-						"sceneName":     r.SceneDetail.SceneName,
-						"state":         r.SceneDetail.State,
-						"finishCount":   r.SceneDetail.FinishCount,
-						"successCount":  r.SceneDetail.SuccessCount,
-						"failCount":     r.SceneDetail.FailCount,
-						"duration":      r.SceneDetail.Duration,
-						"actionRecords": []map[string]interface{}{},
-					},
-				}
-			} else {
-				// execID 存在
-				scene := make(map[string]interface{})
-				scene["sceneId"] = r.SceneDetail.SceneID
-				scene["sceneName"] = r.SceneDetail.SceneName
-				scene["state"] = r.SceneDetail.State
-				scene["finishCount"] = r.SceneDetail.FinishCount
-				scene["successCount"] = r.SceneDetail.SuccessCount
-				scene["failCount"] = r.SceneDetail.FailCount
-				scene["duration"] = r.SceneDetail.Duration
-				scene["actionRecords"] = []map[string]interface{}{}
-				execMap[execID] = append(execMap[execID], scene)
+			if _, exists := execMap[r.SceneDetail.SceneID]; !exists {
+				sceneDetails = append(sceneDetails, map[string]interface{}{
+					"execId":        r.ExecID,
+					"sceneId":       r.SceneDetail.SceneID,
+					"sceneName":     r.SceneDetail.SceneName,
+					"state":         r.SceneDetail.State,
+					"finishCount":   r.SceneDetail.FinishCount,
+					"successCount":  r.SceneDetail.SuccessCount,
+					"failCount":     r.SceneDetail.FailCount,
+					"duration":      r.SceneDetail.Duration,
+					"actionRecords": []map[string]interface{}{},
+				})
+				execMap[r.SceneDetail.SceneID] = ""
 			}
 		}
 	}
 
 	// 查找 action 类型的记录,并加进去 scene
 	for _, r := range taskRunRecord {
-		execID := r.ExecID
 		if r.LogType == "action" {
-			for i, scene := range execMap[execID] {
+			for i, scene := range sceneDetails {
 				if scene["sceneId"] == r.ActionDetail.SceneID {
 					actionRecord := map[string]interface{}{
 						"actionId":   r.ActionDetail.ActionID,
@@ -108,15 +154,32 @@ func (l *GetAllTaskRunRecordLogic) GetAllTaskRunRecord(req *types.GetAllTaskRunR
 						"request":    r.ActionDetail.Request,
 						"response":   r.ActionDetail.Response,
 					}
-					scene["actionRecords"] = append(scene["actionRecords"].([]map[string]interface{}), actionRecord)
-					execMap[execID][i] = scene
+					sceneDetails[i]["actionRecords"] = append(sceneDetails[i]["actionRecords"].([]map[string]interface{}), actionRecord)
 					break
 				}
 			}
 		}
 	}
+	return sceneDetails, nil
+}
 
-	// 将聚合结果添加到响应中
-	resp.Data = execMap
-	return
+func getAllTasks(ctx context.Context, taskLogModel task_run_log.TaskRunLogModel, taskId string) ([]*RecordMeta, error) {
+	var recordList []*RecordMeta
+	taskRunRecords, err := taskLogModel.FindAllTaskRecords(ctx, taskId)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range taskRunRecords {
+		recordList = append(recordList, &RecordMeta{
+			TaskId:     r.TaskID,
+			ExecID:     r.ExecID,
+			TaskName:   r.TaskDetail.TaskName,
+			SceneCount: r.TaskDetail.TaskSceneCount,
+			State:      strconv.Itoa(r.TaskDetail.TaskState),
+			CreateTime: r.CreateAt.Format("2006-01-02 15:04:05"),
+			UpdateTime: r.UpdateAt.Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	return recordList, nil
 }
