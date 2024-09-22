@@ -13,6 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zeromicro/go-zero/core/logx"
+
 )
 
 func (ac *Action) getActionPath() (path string) {
@@ -766,6 +767,17 @@ func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 	ac.FinishTime = time.Now()
 	ac.Duration = int(ac.FinishTime.Sub(ac.StartTime).Milliseconds())
 	if resp.StatusCode != http.StatusOK {
+		// 读取响应体
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			logx.Error("读取响应体失败:", err)
+			return nil, fmt.Errorf("读取响应体失败: %v", err)
+		}
+
+		// 记录响应状态码和响应体
+		logx.Infof("响应状态码: %d", resp.StatusCode)
+		logx.Infof("响应体: %s", string(body))
+
 		return nil, fmt.Errorf("request failed with status code %d", resp.StatusCode)
 	}
 	select {
