@@ -380,31 +380,26 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, taskId string, mgoC
 	murl := mongo.GetMongoUrl(mgoConfig)
 	mod := task_run_log.NewTaskRunLogModel(murl, "lct", "TaskRunLog")
 
-	wg.Add(1)
+	finishChan := make(chan RunFlowLog)
 	go func(taskId string, mod task_run_log.TaskRunLogModel) {
-		defer func() {
-			close(runner.LogChan)
-			wg.Done()
-		}()
 		for log := range runner.LogChan {
-			if log.LogType == "TASK" {
-				if log.TriggerNode != "TASK_FINISH" {
-					continue
-				}
-				taskLog, err := mod.FindLogRecord(ctx, log.RunId, "", "", "task")
-				if err != nil {
-					logx.Error(err)
-					return
-				}
-				// 查找所有的scene记录，看看是否有error，有的话更新状态=2，否则状态=1
-				allRunScenes, err := mod.FindAllSceneRecord(ctx, log.RunId, log.SceneID)
-				if err != nil {
-					logx.Error(err)
-					return
-				}
-
-				syncTaskRecord(taskLog, allRunScenes, log, mod)
-			}
+			// if log.LogType == "TASK" {
+			// 	if log.TriggerNode != "TASK_FINISH" {
+			// 		continue
+			// 	}
+			// 	taskLog, err := mod.FindLogRecord(ctx, log.RunId, "", "", "task")
+			// 	if err != nil {
+			// 		logx.Error(err)
+			// 		return
+			// 	}
+			// 	// 查找所有的scene记录，看看是否有error，有的话更新状态=2，否则状态=1
+			// 	allRunScenes, err := mod.FindAllSceneRecord(ctx, log.RunId, log.SceneID)
+			// 	if err != nil {
+			// 		logx.Error(err)
+			// 		return
+			// 	}
+			// 	syncTaskRecord(taskLog, allRunScenes, log, mod)
+			// }
 			if log.LogType == "SCENE" {
 				sceneLog, err := mod.FindLogRecord(ctx, log.RunId, log.EventId, "", "scene")
 				if err != nil {
@@ -420,7 +415,6 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, taskId string, mgoC
 				}
 				createSceneRecord(taskId, log, mod)
 			}
-
 			if log.LogType == "ACTION" {
 				logx.Error(log.SceneID)
 				taskLog, err := mod.FindLogRecord(ctx, log.RunId, log.SceneID, log.EventId, "action")
@@ -439,6 +433,25 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, taskId string, mgoC
 				createActionRecord(taskId, log, mod)
 			}
 		}
+
+		// 读取 Finish 事件
+		finishSign := <-finishChan
+		if finishSign.LogType == "TASK" {
+			taskLog, err := mod.FindLogRecord(ctx, finishSign.RunId, "", "", "task")
+			if err != nil {
+				logx.Error(err)
+				return
+			}
+			// 查找所有的scene记录，看看是否有error，有的话更新状态=2，否则状态=1
+			allRunScenes, err := mod.FindAllSceneRecord(ctx, finishSign.RunId, finishSign.SceneID)
+			if err != nil {
+				logx.Error(err)
+				return
+			}
+
+			syncTaskRecord(taskLog, allRunScenes, finishSign, mod)
+		}
+		close(finishChan)
 	}(taskId, mod)
 
 	for _, scene := range runner.Cases {
@@ -452,16 +465,16 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, taskId string, mgoC
 	wg.Wait()
 	logx.Infof("执行任务 [%s] 结束", runner.ExecID)
 
+	// 这个时候所有场景都已经执行完成
+	close(runner.LogChan)
+
 	// 发送task_finish事件
-	runner.LogChan <- RunFlowLog{
+	finishChan <- RunFlowLog{
 		LogType:     "TASK",
 		TriggerNode: "TASK_FINISH",
 		RunId:       runner.ExecID,
 		Message:     "任务执行完成",
 	}
-
-	// 这个时候所有场景都已经执行完成
-	close(runner.LogChan)
 }
 
 func updateActionRecord(record *task_run_log.TaskRunLog, log RunFlowLog, mod task_run_log.TaskRunLogModel) error {
