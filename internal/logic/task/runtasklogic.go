@@ -250,6 +250,8 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 
 	// exector.Initialize(l.svcCtx.RedisClient)
 
+	// todo: 如果当前有任务再进行中，直接返回进行中的任务
+
 	// 创建任务执行记录
 	if _, err := l.CreateTaskRunRecord(req.TaskId, exector.ExecID); err != nil {
 		logx.Error(err)
