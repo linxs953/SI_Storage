@@ -11,14 +11,11 @@ import (
 	"lexa-engine/internal/model/mongo/taskinfo"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
-	"os"
-	"regexp"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/zeromicro/go-zero/core/logx"
-	"gopkg.in/yaml.v2"
+
 )
 
 type RunTaskLogic struct {
@@ -237,7 +234,6 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 
 	// 构建执行器
 	exector, err := l.buildApiExecutorWithTaskId(req.TaskId)
-	// exector, err := buildApiExecutor("./demo.yaml")
 
 	if err != nil {
 		return nil, err
@@ -248,11 +244,35 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 	}
 	logx.Error(string(exectorBts))
 
-	// exector.Initialize(l.svcCtx.RedisClient)
+	taskRunning, err := l.checkTaskRunning(req.TaskId)
 
-	// todo: 如果当前有任务再进行中，直接返回进行中的任务
+	// 获取任务运行记录失败
+	if err != nil {
+		return &types.RunTaskResp{
+			Code:    1,
+			Message: err.Error(),
+			Data: types.RunResp{
+				Message: "获取任务运行状态失败",
+				RunId:   "",
+				State:   0,
+			},
+		}, err
+	}
 
-	// 创建任务执行记录
+	// 有运行中的任务,返回运行中的任务
+	if taskRunning != nil {
+		return &types.RunTaskResp{
+			Code:    0,
+			Message: "success",
+			Data: types.RunResp{
+				Message: "任务正在运行",
+				RunId:   taskRunning.ExecID,
+				State:   taskRunning.TaskDetail.TaskState,
+			},
+		}, nil
+	}
+
+	// 没有运行中的任务, 创建任务执行记录
 	if _, err := l.CreateTaskRunRecord(req.TaskId, exector.ExecID); err != nil {
 		logx.Error(err)
 		return nil, err
@@ -466,282 +486,24 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 	return executor, err
 }
 
-func buildApiExecutor(filename string) (*apirunner.ApiExecutor, error) {
-	yamlFile, err := os.ReadFile(filename)
-	if err != nil {
-		logx.Errorf("Error reading YAML file: %v", err)
-	}
-
-	var sceneConfig Scene
-	err = yaml.Unmarshal(yamlFile, &sceneConfig)
-	if err != nil {
-		logx.Errorf("Error unmarshaling YAML: %v", err)
-		return nil, err
-	}
-
-	var scenes []*apirunner.SceneConfig
-	var actions []apirunner.Action
-
-	// 通过action sk 找到 scene sk
-	actionSceneMap := make(map[string]string)
-
-	// 通过action sk 找到 当前场景下的所有前置actionid
-	preActionsMap := make(map[string]string)
-
-	// 通过scene sk 找到sceneid
-	sceneMap := make(map[string]string)
-
-	// 通过action sk 找到 actionid
-	actionMap := make(map[string]string)
-
-	sceneId := uuid.New().String()
-
-	sceneMap[sceneConfig.SearchKey] = sceneId
-	canUseScene := ""
-	for _, a := range sceneConfig.Actions {
-		actionId := uuid.New().String()
-		logx.Errorf("searchkey, %s", a.SearchKey)
-		actionMap[a.SearchKey] = actionId
-		preActionsMap[a.SearchKey] = canUseScene
-		actionSceneMap[a.SearchKey] = sceneConfig.SearchKey
-
-		// 处理 action headers
-		apiheaders := make(map[string]string)
-		for hn, hv := range a.Headers {
-			apiheaders[hn] = hv
-		}
-		for _, depend := range a.Dependency {
-			if depend.Refer.Type != "header" {
-				continue
-			}
-			if depend.Type == "1" {
-				apiheaders[depend.Refer.Target] = fmt.Sprintf("Bearer %s.%s", depend.ActionKey, depend.DataKey)
-			}
-			if depend.Type == "2" {
-				apiheaders[depend.Refer.Target] = fmt.Sprintf("Bearer %s.%s", depend.ActionKey, depend.DataKey)
-				logx.Errorf("apiheader datakey: %s", depend.DataKey)
-			}
-
-			if depend.Type == "3" {
-				apiheaders[depend.Refer.Target] = depend.DataKey
-			}
-		}
-
-		// 处理 action path
-		actionPath := a.ActionPath
-		pathParams := regexp.MustCompile(`\{.*?\}`).FindAllString(actionPath, -1)
-		if len(pathParams) > 0 {
-			// for _, param := range pathParams {
-			for _, depend := range a.Dependency {
-				if depend.Refer.Type != "path" {
-					continue
-				}
-
-				if depend.Type == "1" {
-					for _, param := range pathParams {
-						pathKey := strings.Split(depend.Refer.Target, ".")
-						if len(pathKey) != 2 {
-							logx.Errorf("填充url path表达式时，depenency个是错误，%s", depend.Refer.Target)
-							continue
-						}
-						if strings.Contains(param, pathKey[1]) {
-							actionPath = strings.ReplaceAll(actionPath, param, fmt.Sprintf("%s.%s", depend.ActionKey, depend.DataKey))
-						}
-						break
-					}
-
-				}
-
-				if depend.Type == "2" {
-					for _, param := range pathParams {
-						pathKey := strings.Split(depend.Refer.Target, ".")
-						if len(pathKey) != 2 {
-							logx.Errorf("填充url path表达式时，depenency个是错误，%s", depend.Refer.Target)
-							continue
-						}
-						if strings.Contains(param, pathKey[1]) {
-							actionPath = strings.ReplaceAll(actionPath, param, fmt.Sprintf("%s.%s", depend.ActionKey, depend.DataKey))
-							logx.Errorf("new path : %s, %s, %s", param, depend.ActionKey, depend.DataKey)
-							break
-						}
-					}
-				}
-
-				if depend.Type == "3" {
-					for _, param := range pathParams {
-						pathKey := strings.Split(depend.Refer.Target, ".")
-						if len(pathKey) != 2 {
-							logx.Errorf("填充url path表达式时，depenency个是错误，%s", depend.Refer.Target)
-							continue
-						}
-						if strings.Contains(param, pathKey[1]) {
-							actionPath = strings.ReplaceAll(actionPath, param, depend.DataKey)
-						}
-						break
-					}
-				}
-			}
-			// }
-		}
-
-		// 处理 action query
-		apiparams := make(map[string]string)
-		for _, depend := range a.Dependency {
-			if depend.Refer.Type != "query" {
-				continue
-			}
-			queryParts := strings.Split(depend.Refer.Target, ".")
-			if len(queryParts) < 2 || len(queryParts) > 2 {
-				logx.Error("depend.refer.target格式错误, 示例: query.$field")
-				continue
-			}
-			queryName := queryParts[1]
-
-			if depend.Type == "1" {
-				apiparams[queryName] = fmt.Sprintf("%s.%s", depend.ActionKey, depend.DataKey)
-			}
-			if depend.Type == "2" {
-				apiparams[queryName] = fmt.Sprintf("%s.%s", depend.ActionKey, depend.DataKey)
-			}
-			if depend.Type == "3" {
-				apiparams[queryName] = depend.DataKey
-			}
-		}
-
-		// 处理 action payload
-		payload := make(map[string]interface{})
-		// post / put 需要去设置payload
-		if strings.Contains("POSTPUT", a.ActionMethod) {
-			for _, pl := range a.Dependency {
-				if pl.Refer.Type != "payload" {
-					continue
-				}
-				key := strings.Split(pl.Refer.Target, ".")[1]
-				if pl.Type == "1" {
-					payload[key] = fmt.Sprintf("%s.%s", pl.ActionKey, pl.DataKey)
-				}
-				if pl.Type == "2" {
-					payload[key] = fmt.Sprintf("%s.%s", pl.ActionKey, pl.DataKey)
-				}
-				if pl.Type == "3" {
-					payload[key] = pl.DataKey
-				}
-			}
-		}
-
-		// 处理 action 预期结果
-		expects := apirunner.ActionExpect{
-			ActionID: a.ActionID,
-		}
-		for _, e := range a.Expect.Api {
-			expect := apirunner.ApiExpect{
-				Type:      e.Type,
-				FieldName: e.Data.Name,
-				Operation: e.Data.Operation,
-				DataType:  e.Data.Type,
-				Desire:    e.Data.Desire,
-			}
-			expects.ApiExpect = append(expects.ApiExpect, expect)
-		}
-
-		// 处理 action 输出
-		output := apirunner.ActionOutput{
-			ActionID: a.ActionID,
-			// Key:      fmt.Sprintf("%s.%s", sceneId, a.ActionID),
-		}
-
-		action := apirunner.Action{
-			ActionID: actionId,
-			SceneID:  sceneId,
-
-			CurrentRefer: fmt.Sprintf("%s.%s", sceneConfig.SearchKey, a.SearchKey),
-			ApiID:        fmt.Sprintf("%v", a.RelateId),
-			ActionName:   a.ActionName,
-			Conf: apirunner.ActionConf{
-				Timeout: a.Timeout,
-				Retry:   a.Retry,
-			},
-			Request: apirunner.ActionRequest{
-				Path:    actionPath,
-				Method:  a.ActionMethod,
-				Headers: apiheaders,
-				Params:  apiparams,
-				Payload: payload,
-				Domain:  a.DomainKey,
-			},
-			Expect: expects,
-			Output: output,
-		}
-		actions = append(actions, action)
-		if canUseScene == "" {
-			canUseScene = actionId
-		} else {
-			canUseScene = fmt.Sprintf("%s,%s", canUseScene, actionId)
-		}
-	}
-	scene := &apirunner.SceneConfig{
-		Description: sceneConfig.Description,
-		Total:       len(sceneConfig.Actions),
-		Author:      sceneConfig.Author,
-		Timeout:     30,
-		Actions:     actions,
-		SceneID:     sceneId,
-	}
-	scenes = append(scenes, scene)
-	executor, err := apirunner.NewApiExecutor(scenes)
+func (l *RunTaskLogic) checkTaskRunning(taskId string) (*task_run_log.TaskRunLog, error) {
+	murl := mgoutil.GetMongoUrl(l.svcCtx.Config.Database.Mongo)
+	taskMod := task_run_log.NewTaskRunLogModel(murl, l.svcCtx.Config.Database.Mongo.UseDb, "TaskRunLog")
+	taskAllRun, err := taskMod.FindAllTaskRecords(l.ctx, taskId)
 	if err != nil {
 		return nil, err
 	}
-	executor.SceneMap = sceneMap
-	executor.ActionSceneMap = actionSceneMap
-	// executor.PreActionsMap = preActionsMap
-	executor.ActionMap = actionMap
-	return executor, nil
-}
 
-// 开始执行任务
-func (l *RunTaskLogic) StartTask(task *Scene) (err error) {
-	taskRunID := uuid.New().String()
-	taskStartEvent := &TaskEvent{
-		EventMsg: EventMsg{
-			RequestID: taskRunID,
-			TaskID:    task.SceneId,
-			Total:     len(task.Actions),
-			Execute:   0,
-			State:     0,
-			StartAt:   time.Now(),
-			FinishAt:  time.Time{},
-		},
-		EventType: "task_start",
-	}
-	eventBytes, err := json.Marshal(taskStartEvent)
-	if err != nil {
-		return err
-	}
-	if err = l.svcCtx.TaskPushClient.Push(string(eventBytes)); err != nil {
-		return err
-	}
-	// for i, action := range task.Actions {
-
-	// }
-	taskFinishEvent := &TaskEvent{
-		EventMsg: EventMsg{
-			RequestID: taskRunID,
-			TaskID:    task.SceneId,
-			State:     1,
-			Duration:  100.0,
-			StartAt:   time.Now(),
-			FinishAt:  time.Now(),
-		},
-		EventType: "task_finish",
-	}
-	finishEventBytes, err := json.Marshal(taskFinishEvent)
-	if err != nil {
-		return err
+	if len(taskAllRun) == 0 {
+		return nil, nil
 	}
 
-	if err = l.svcCtx.TaskPushClient.Push(string(finishEventBytes)); err != nil {
-		return err
+	if len(taskAllRun) > 0 {
+		for _, taskRun := range taskAllRun {
+			if taskRun.TaskDetail.TaskState == 0 {
+				return taskRun, nil
+			}
+		}
 	}
-	return
+	return nil, nil
 }

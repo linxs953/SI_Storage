@@ -7,6 +7,7 @@ import (
 	"github.com/zeromicro/go-zero/core/stores/mon"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
 )
 
 var _ TaskRunLogModel = (*customTaskRunLogModel)(nil)
@@ -39,6 +40,7 @@ func (m *customTaskRunLogModel) Insert(ctx context.Context, data *TaskRunLog) er
 	return m.defaultTaskRunLogModel.Insert(ctx, data)
 }
 
+// 查找单条记录
 func (m *customTaskRunLogModel) FindLogRecord(ctx context.Context, execID string, sceneId string, actionId string, logType string) (*TaskRunLog, error) {
 	var record TaskRunLog
 	if logType == "scene" {
@@ -61,6 +63,7 @@ func (m *customTaskRunLogModel) FindLogRecord(ctx context.Context, execID string
 	return &record, nil
 }
 
+// 查找所有场景记录
 func (m *customTaskRunLogModel) FindAllSceneRecord(ctx context.Context, execId string, sceneId string) ([]*TaskRunLog, error) {
 	var sceneRecords []*TaskRunLog
 	sortOptions := options.Find()
@@ -71,6 +74,7 @@ func (m *customTaskRunLogModel) FindAllSceneRecord(ctx context.Context, execId s
 	return sceneRecords, nil
 }
 
+// 根据 execId 查找运行的所有记录
 func (m *customTaskRunLogModel) FindTaskRunRecord(ctx context.Context, taskId string) ([]*TaskRunLog, error) {
 	var recordList []*TaskRunLog
 	sortOptions := options.Find()
@@ -81,6 +85,7 @@ func (m *customTaskRunLogModel) FindTaskRunRecord(ctx context.Context, taskId st
 	return recordList, nil
 }
 
+// 根据 taskId 查找所有 运行记录
 func (m *customTaskRunLogModel) FindAllTaskRecords(ctx context.Context, taskId string) ([]*TaskRunLog, error) {
 	var recordList []*TaskRunLog
 	sortOptions := options.Find()
