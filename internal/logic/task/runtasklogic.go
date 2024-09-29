@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/zeromicro/go-zero/core/logx"
-
 )
 
 type RunTaskLogic struct {
@@ -265,7 +264,7 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 			Code:    0,
 			Message: "success",
 			Data: types.RunResp{
-				Message: "任务正在运行",
+				Message: "存在运行中的任务",
 				RunId:   taskRunning.ExecID,
 				State:   taskRunning.TaskDetail.TaskState,
 			},
