@@ -640,6 +640,9 @@ func syncTaskRecord(record *task_run_log.TaskRunLog, allRunScene []*task_run_log
 	if record == nil {
 		return fmt.Errorf("record is nil")
 	}
+	if len(allRunScene) == 0 {
+		return fmt.Errorf("找不到运行中的场景")
+	}
 
 	isSuccess := true
 	for _, scene := range allRunScene {
