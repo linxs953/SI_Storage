@@ -3,6 +3,7 @@ package handler
 
 import (
 	"net/http"
+
 	apiInfo "lexa-engine/internal/handler/apiInfo"
 	cache "lexa-engine/internal/handler/cache"
 	scene "lexa-engine/internal/handler/scene"
@@ -106,8 +107,13 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 			{
 				Method:  http.MethodGet,
-				Path:    "getDetail",
+				Path:    "/getDetail",
 				Handler: task.GetRunDetailHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodDelete,
+				Path:    "/deleteRecord",
+				Handler: task.DeleteTaskRunRecordHandler(serverCtx),
 			},
 		},
 		rest.WithPrefix("/task"),

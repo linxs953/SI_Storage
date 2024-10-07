@@ -27,6 +27,16 @@ type SyncVO struct {
 	Data    map[string]interface{} `json:"data"`
 }
 
+type DeleteTaskRunRecordDto struct {
+	ExecId string `json:"execId"`
+}
+
+type DeleteTaskRunRecordResp struct {
+	Code    int         `json:"code"`
+	Message string      `json:"messsage"`
+	Data    interface{} `json:"data"`
+}
+
 type GetRunDetailDto struct {
 	TaskId string `json:"taskId"`
 	ExecId string `json:"execId"`
@@ -40,14 +50,19 @@ type GetRunDetailResp struct {
 }
 
 type GetAllTaskRunRecordDto struct {
-	TaskId string `json:"taskId"`
+	TaskId   string `json:"taskId"`
+	PageSize string `json:"pageSize"`
+	PageNum  string `json:"pageNum"`
 }
 
 type GetAllTaskRunRecordResp struct {
-	Code     int          `json:"code"`
-	Message  string       `json:"messsage"`
-	TaskMeta TaskMeta     `json:"taskMeta"`
-	TaskRun  []TaskRecord `json:"taskRun"`
+	Code        int          `json:"code"`
+	Message     string       `json:"messsage"`
+	TaskMeta    TaskMeta     `json:"taskMeta"`
+	TaskRun     []TaskRecord `json:"taskRun"`
+	TotalNum    int          `json:"totalNum"`
+	TotalPage   int          `json:"totalPage"`
+	CurrentPage int          `json:"currentPage"`
 }
 
 type TaskMeta struct {
@@ -181,9 +196,12 @@ type GetTaskListDto struct {
 }
 
 type GetTaskListResp struct {
-	Code    int                      `json:"code"`
-	Message string                   `json:"messsage"`
-	Data    []map[string]interface{} `json:"data"`
+	Code        int                      `json:"code"`
+	Message     string                   `json:"messsage"`
+	Data        []map[string]interface{} `json:"data"`
+	TotalNum    int                      `json:"totalNum"`
+	TotalPage   int                      `json:"totalPage"`
+	CurrentPage int                      `json:"currentPage"`
 }
 
 type RunTaskDto struct {

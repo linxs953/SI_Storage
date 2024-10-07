@@ -1,14 +1,14 @@
 package apirunner
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
-	"fmt"
-	"strings"
+
 	// "github.com/zeromicro/go-zero/core/logx"
 	"github.com/google/uuid"
-
 )
 
 type StoreAction func(actionKey string, respFields map[string]interface{}) error
@@ -120,9 +120,56 @@ type ActionDepend struct {
 	// 当前依赖的类型, 内部 / 外部
 	Type      string
 	ActionKey string
+
 	// 表达式,从 response 中读取具体字段的值
-	DataKey string
-	Refer   Refer
+	DataKey    string
+	DataSource []DependInject
+
+	IsMultiDs bool
+
+	// 1 表示最终的数据类型是 string, 包括常规的string 和序列化对象后的 string
+	Mode string
+
+	// 存储最终赋值给字段的模版, 执行的时候把数据源注入, 拼接成真实的数据
+	Extra string
+
+	DsSpec []DataSourceSpec
+
+	// 最终的数据值
+	Output Output
+
+	Refer Refer
+}
+
+// 添加到模板的数据源定义
+type DataSourceSpec struct {
+	FieldName string
+	DependId  string
+
+	// 写入到 extra 里面的字段的数据类型
+	DataType string
+}
+
+type Output struct {
+	Value interface{}
+	Type  string
+}
+
+type DependInject struct {
+	DependId      string
+	Type          string
+	DataKey       string
+	ActionKey     string
+	SearchCondArr []SearchCond
+}
+
+type SearchCond struct {
+	// 条件字段
+	CondFiled string
+	// 条件值
+	CondValue string
+	// 条件类型, eq / neq / gt / gte / lt / lte / like / in / nin / nin
+	CondOperation string
 }
 
 type Refer struct {
@@ -197,11 +244,11 @@ func NewApiExecutor(scenes []*SceneConfig) (*ApiExecutor, error) {
 		for aidx, action := range scene.Actions {
 			// logx.Errorf("当前Action, %s", action.ActionName)
 			scenes[sidx].Actions[aidx].Output.ExecID = execID
-			preActionMap[action.ActionID] = strings.Split(sceneIterMap[scene.SceneID],",")
+			preActionMap[action.ActionID] = strings.Split(sceneIterMap[scene.SceneID], ",")
 			if sceneIterMap[scene.SceneID] == "" {
 				sceneIterMap[scene.SceneID] = action.ActionID
 			} else {
-				sceneIterMap[scene.SceneID] += fmt.Sprintf(",%s",action.ActionID)
+				sceneIterMap[scene.SceneID] += fmt.Sprintf(",%s", action.ActionID)
 			}
 			sceneActionMap[action.ActionID] = scene.SceneID
 			actionMap[action.ActionID] = action.ActionName
@@ -216,7 +263,7 @@ func NewApiExecutor(scenes []*SceneConfig) (*ApiExecutor, error) {
 		// Result:         make(map[string]map[string]interface{}),
 		Result:         sync.Map{},
 		LogSet:         make([]RunFlowLog, 0),
-		LogChan:        make(chan RunFlowLog, len(scenes)),
+		LogChan:        make(chan RunFlowLog, len(scenes)*25),
 		ActionSceneMap: sceneActionMap,
 		PreActionsMap:  preActionMap,
 		SceneMap:       sceneMap,

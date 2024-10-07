@@ -22,10 +22,54 @@ type Action struct {
 
 // Dependency represents the dependencies of an action.
 type Dependency struct {
-	Type      string `json:"type"`
-	ActionKey string `json:"actionKey"`
-	DataKey   string `json:"dataKey"`
-	Refer     Refer  `json:"refer"`
+	Type       string `json:"type"`
+	ActionKey  string `json:"actionKey"`
+	DataKey    string `json:"dataKey"`
+	Refer      Refer  `json:"refer"`
+	DataSource []DependInject
+
+	IsMultiDs bool
+
+	// 1 表示最终的数据类型是 string, 包括常规的string 和序列化对象后的 string
+	Mode string
+
+	// 存储最终赋值给字段的模版, 执行的时候把数据源注入, 拼接成真实的数据
+	Extra string
+
+	DsSpec []DataSourceSpec
+
+	// 最终的数据值
+	Output OutputSpec
+}
+
+type OutputSpec struct {
+	Value interface{}
+	Type  string
+}
+
+type DataSourceSpec struct {
+	FieldName string
+	DependId  string
+
+	// 写入到 extra 里面的字段的数据类型
+	DataType string
+}
+
+type DependInject struct {
+	DependId      string
+	Type          string
+	DataKey       string
+	ActionKey     string
+	SearchCondArr []SearchCond
+}
+
+type SearchCond struct {
+	// 条件字段
+	CondFiled string
+	// 条件值
+	CondValue string
+	// 条件类型, eq / neq / gt / gte / lt / lte / like / in / nin / nin
+	CondOperation string
 }
 
 // Refer represents references within a dependency.

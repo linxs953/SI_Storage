@@ -18,7 +18,9 @@ type (
 		FindLogRecord(ctx context.Context, execID string, sceneId string, actionId string, logType string) (*TaskRunLog, error)
 		FindTaskRunRecord(ctx context.Context, taskId string) ([]*TaskRunLog, error)
 		FindAllSceneRecord(ctx context.Context, execId string, sceneId string) ([]*TaskRunLog, error)
-		FindAllTaskRecords(ctx context.Context, taskId string) ([]*TaskRunLog, error)
+		FindAllTaskRecords(ctx context.Context, taskId string, pageNum, pageSize int) ([]*TaskRunLog, error)
+		CountTaskRecords(ctx context.Context, taskId string) (int64, error)
+		DeleteTaskRunRecordByExecId(ctx context.Context, execId string) error
 		taskRunLogModel
 	}
 
@@ -85,12 +87,34 @@ func (m *customTaskRunLogModel) FindTaskRunRecord(ctx context.Context, taskId st
 }
 
 // 根据 taskId 查找所有 运行记录
-func (m *customTaskRunLogModel) FindAllTaskRecords(ctx context.Context, taskId string) ([]*TaskRunLog, error) {
+func (m *customTaskRunLogModel) FindAllTaskRecords(ctx context.Context, taskId string, pageNum, pageSize int) ([]*TaskRunLog, error) {
 	var recordList []*TaskRunLog
 	sortOptions := options.Find()
-	sortOptions.SetSort(bson.D{{Key: "createAt", Value: -1}}) // 使用降序排列
+	if pageNum > 0 && pageSize > 0 {
+		sortOptions.SetSort(bson.D{{Key: "createAt", Value: -1}}) // 使用降序排列
+		sortOptions.SetSkip(int64((pageNum - 1) * pageSize))
+		sortOptions.SetLimit(int64(pageSize))
+	}
 	if err := m.conn.Find(ctx, &recordList, bson.M{"taskId": taskId, "logType": "task"}, sortOptions); err != nil {
 		return nil, err
 	}
 	return recordList, nil
+}
+
+// 根据 taskId 获取数据量
+func (m *customTaskRunLogModel) CountTaskRecords(ctx context.Context, taskId string) (int64, error) {
+	count, err := m.conn.CountDocuments(ctx, bson.M{"taskId": taskId, "logType": "task"})
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// 根据 execId 删除所有任务记录
+func (m *customTaskRunLogModel) DeleteTaskRunRecordByExecId(ctx context.Context, execId string) error {
+	_, err := m.conn.DeleteMany(ctx, bson.M{"execId": execId})
+	if err != nil {
+		return err
+	}
+	return nil
 }

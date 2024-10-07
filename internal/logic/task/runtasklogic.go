@@ -11,6 +11,7 @@ import (
 	"lexa-engine/internal/model/mongo/taskinfo"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
+	"lexa-engine/internal/utils"
 	"strings"
 	"time"
 
@@ -352,6 +353,27 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 						Target:   dep.Refer.Target,
 						Type:     dep.Refer.Type,
 					},
+					DataSource: []apirunner.DependInject{},
+					Mode:       dep.Mode,
+					Extra:      dep.Extra,
+				}
+				for _, ds := range dep.DataSource {
+					searchCondArr := make([]apirunner.SearchCond, 0)
+					for _, sc := range ds.SearchCondArr {
+						searchCondArr = append(searchCondArr, apirunner.SearchCond{
+							CondFiled:     sc.CondFiled,
+							CondValue:     sc.CondValue,
+							CondOperation: sc.CondOperation,
+						})
+					}
+					dependId := utils.EncodeToBase36(utils.GenerateId())
+					ad.DataSource = append(ad.DataSource, apirunner.DependInject{
+						DependId:      fmt.Sprintf("%s_%s", "DEPEND", strings.ToUpper(dependId)),
+						Type:          ds.Type,
+						DataKey:       ds.DataKey,
+						ActionKey:     ds.ActionKey,
+						SearchCondArr: searchCondArr,
+					})
 				}
 				actionDepends = append(actionDepends, ad)
 			}
@@ -488,7 +510,7 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 func (l *RunTaskLogic) checkTaskRunning(taskId string) (*task_run_log.TaskRunLog, error) {
 	murl := mgoutil.GetMongoUrl(l.svcCtx.Config.Database.Mongo)
 	taskMod := task_run_log.NewTaskRunLogModel(murl, l.svcCtx.Config.Database.Mongo.UseDb, "TaskRunLog")
-	taskAllRun, err := taskMod.FindAllTaskRecords(l.ctx, taskId)
+	taskAllRun, err := taskMod.FindAllTaskRecords(l.ctx, taskId, -1, -1)
 	if err != nil {
 		return nil, err
 	}

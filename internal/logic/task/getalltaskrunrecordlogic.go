@@ -7,6 +7,7 @@ import (
 	"lexa-engine/internal/model/mongo/taskinfo"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
+	"math"
 	"strconv"
 
 	"github.com/zeromicro/go-zero/core/logx"
@@ -36,12 +37,28 @@ func (l *GetAllTaskRunRecordLogic) GetAllTaskRunRecord(req *types.GetAllTaskRunR
 	murl := mgo.GetMongoUrl(l.svcCtx.Config.Database.Mongo)
 	taskLogModel := task_run_log.NewTaskRunLogModel(murl, l.svcCtx.Config.Database.Mongo.UseDb, "TaskRunLog")
 	taskModel := taskinfo.NewTaskInfoModel(murl, l.svcCtx.Config.Database.Mongo.UseDb, "TaskInfo")
+
+	// 获取数据总量
+	totalCount, err := taskLogModel.CountTaskRecords(l.ctx, req.TaskId)
+	if err != nil {
+		return nil, err
+	}
+
 	taskInfo, err := taskModel.FindByTaskId(l.ctx, req.TaskId)
 	if err != nil {
 		return nil, err
 	}
 
-	recordList, err := getAllTasks(l.ctx, taskLogModel, req.TaskId)
+	pageNum, err := strconv.Atoi(req.PageNum)
+	if err != nil {
+		return nil, err
+	}
+	pageSize, err := strconv.Atoi(req.PageSize)
+	if err != nil {
+		return nil, err
+	}
+
+	recordList, err := getAllTasks(l.ctx, taskLogModel, req.TaskId, pageNum, pageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +114,9 @@ func (l *GetAllTaskRunRecordLogic) GetAllTaskRunRecord(req *types.GetAllTaskRunR
 	}
 
 	resp.TaskRun = taskRecords
+	resp.CurrentPage = pageNum
+	resp.TotalPage = int(math.Ceil(float64(totalCount) / float64(pageSize)))
+	resp.TotalNum = int(totalCount)
 	return
 }
 
@@ -163,9 +183,9 @@ func getSceneDetail(ctx context.Context, taskLogModel task_run_log.TaskRunLogMod
 	return sceneDetails, nil
 }
 
-func getAllTasks(ctx context.Context, taskLogModel task_run_log.TaskRunLogModel, taskId string) ([]*RecordMeta, error) {
+func getAllTasks(ctx context.Context, taskLogModel task_run_log.TaskRunLogModel, taskId string, pageNum, pageSize int) ([]*RecordMeta, error) {
 	var recordList []*RecordMeta
-	taskRunRecords, err := taskLogModel.FindAllTaskRecords(ctx, taskId)
+	taskRunRecords, err := taskLogModel.FindAllTaskRecords(ctx, taskId, pageNum, pageSize)
 	if err != nil {
 		return nil, err
 	}

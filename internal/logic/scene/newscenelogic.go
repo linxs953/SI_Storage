@@ -142,6 +142,23 @@ func sceneTempGen(apiIDs []int, sceneName, description, author, mongourl string)
 				DataKey:   "data.token",
 				ActionKey: "$sid.$aid",
 				Type:      "1",
+				Mode:      "1",
+				Extra:     "",
+				DataSource: []logic.DependInject{
+					{
+						DependId:      fmt.Sprintf("DEPEND_%s", encodeToBase36(GenerateId())),
+						Type:          "1",
+						DataKey:       "$data.token",
+						ActionKey:     "$sid.$aid",
+						SearchCondArr: []logic.SearchCond{},
+					},
+				},
+				DsSpec:    make([]logic.DataSourceSpec, 0),
+				IsMultiDs: false,
+				Output: logic.OutputSpec{
+					Value: "",
+					Type:  "string",
+				},
 			})
 		}
 
@@ -160,6 +177,23 @@ func sceneTempGen(apiIDs []int, sceneName, description, author, mongourl string)
 					DataKey:   "query字段值",
 					ActionKey: "",
 					Type:      "3",
+					Mode:      "1",
+					Extra:     "",
+					DsSpec:    make([]logic.DataSourceSpec, 0),
+					IsMultiDs: false,
+					DataSource: []logic.DependInject{
+						{
+							DependId:      fmt.Sprintf("DEPEND_%s", encodeToBase36(GenerateId())),
+							Type:          "3",
+							DataKey:       "query字段值",
+							ActionKey:     "",
+							SearchCondArr: []logic.SearchCond{},
+						},
+					},
+					Output: logic.OutputSpec{
+						Value: "",
+						Type:  "string",
+					},
 				})
 			}
 		}
@@ -176,6 +210,23 @@ func sceneTempGen(apiIDs []int, sceneName, description, author, mongourl string)
 						DataKey:   "$data." + fvalue,
 						ActionKey: fmt.Sprintf("%s.%s", "$scenename", "$actionname"),
 						Type:      "1",
+						Mode:      "1",
+						IsMultiDs: false,
+						Extra:     "",
+						DsSpec:    make([]logic.DataSourceSpec, 0),
+						DataSource: []logic.DependInject{
+							{
+								DependId:      fmt.Sprintf("DEPEND_%s", encodeToBase36(GenerateId())),
+								Type:          "1",
+								DataKey:       "$data." + fvalue,
+								ActionKey:     fmt.Sprintf("%s.%s", "$scenename", "$actionname"),
+								SearchCondArr: []logic.SearchCond{},
+							},
+						},
+						Output: logic.OutputSpec{
+							Value: nil,
+							Type:  "",
+						},
 					})
 				}
 			}
@@ -224,6 +275,23 @@ func sceneTempGen(apiIDs []int, sceneName, description, author, mongourl string)
 					DataKey:   header.HeaderValue,
 					ActionKey: "",
 					Type:      "3",
+					Mode:      "1",
+					Extra:     "",
+					IsMultiDs: false,
+					DsSpec:    make([]logic.DataSourceSpec, 0),
+					DataSource: []logic.DependInject{
+						{
+							DependId:      fmt.Sprintf("DEPEND_%s", encodeToBase36(GenerateId())),
+							Type:          "3",
+							DataKey:       header.HeaderValue,
+							ActionKey:     "",
+							SearchCondArr: []logic.SearchCond{},
+						},
+					},
+					Output: logic.OutputSpec{
+						Value: "",
+						Type:  "string",
+					},
 				})
 			}
 		}

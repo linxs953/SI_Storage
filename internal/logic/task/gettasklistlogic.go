@@ -3,13 +3,13 @@ package task
 import (
 	"context"
 	"encoding/json"
-
-	"github.com/zeromicro/go-zero/core/logx"
-
 	mgoutil "lexa-engine/internal/model/mongo"
 	"lexa-engine/internal/model/mongo/taskinfo"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
+	"math"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type GetTaskListLogic struct {
@@ -34,7 +34,19 @@ func (l *GetTaskListLogic) GetTaskList(req *types.GetTaskListDto) (resp *types.G
 	}
 	murl := mgoutil.GetMongoUrl(l.svcCtx.Config.Database.Mongo)
 	taskMod := taskinfo.NewTaskInfoModel(murl, l.svcCtx.Config.Database.Mongo.UseDb, "TaskInfo")
-	taskList, err := taskMod.FindAllTask(context.Background())
+	total, err := taskMod.GetTotalCount(context.Background())
+	if err != nil {
+		resp.Code = 1
+		resp.Message = "获取任务列表错误"
+		return
+	}
+	if total == 0 {
+		resp.Data = []map[string]interface{}{}
+		resp.TotalNum = 0
+		resp.CurrentPage = 0
+		return
+	}
+	taskList, err := taskMod.FindAllTask(context.Background(), req.PageNum, req.PageSize)
 	if err != nil {
 		resp.Code = 1
 		resp.Message = "获取任务列表错误"
@@ -55,5 +67,9 @@ func (l *GetTaskListLogic) GetTaskList(req *types.GetTaskListDto) (resp *types.G
 		return
 	}
 	resp.Data = taskListMap
+	resp.CurrentPage = req.PageNum
+	totalPages := int(math.Ceil(float64(total) / float64(req.PageSize)))
+	resp.TotalPage = totalPages
+	resp.TotalNum = int(total)
 	return
 }

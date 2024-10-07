@@ -31,7 +31,7 @@ func (ac *Action) getActionPath() (path string) {
 	return
 }
 
-func (ac *Action) collectLog(logChan chan RunFlowLog, execId string, trigger string, actionEof bool, message string, err error,response map[string]interface) {
+func (ac *Action) collectLog(logChan chan RunFlowLog, execId string, trigger string, actionEof bool, message string, err error, response map[string]interface{}) {
 	var depends []map[string]interface{}
 	for _, depend := range ac.Request.Dependency {
 		de := make(map[string]interface{})
@@ -59,17 +59,20 @@ func (ac *Action) collectLog(logChan chan RunFlowLog, execId string, trigger str
 		RequestPayload: ac.Request.Payload,
 		RequestHeaders: ac.Request.Headers,
 		RequestDepend:  depends,
-		Response:      	response,
+		Response:       response,
 		ActionIsEof:    actionEof,
 		RootErr:        err,
 	}
 
+	// 使用非阻塞的方式发送日志
 	select {
 	case logChan <- logEntry:
 		// 成功发送
+		logx.Info("成功发送日志")
 	default:
-		// 通道满，记录警告日志
-		logx.Error("Warning: log channel is full, dropping log entry.")
+		// 通道满，记录警告日志并继续执行
+		logx.Error("警告: 日志通道已满，丢弃当前日志条目")
+		logx.Errorf("丢弃的日志内容: %+v", logEntry)
 	}
 }
 
@@ -122,7 +125,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	// 	Message:     fmt.Sprintf("开始执行Action: %s", ac.ActionID),
 	// 	RootErr:     nil,
 	// }
-	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Start", false, fmt.Sprintf("开始执行Action: %s", ac.ActionID), nil,initialResponse)
+	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Start", false, fmt.Sprintf("开始执行Action: %s", ac.ActionID), nil, initialResponse)
 
 	if err = ac.validate(); err != nil {
 		logx.Error(err)
@@ -137,7 +140,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		// 	RootErr:     err,
 		// 	ActionIsEof: true,
 		// }
-		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Validate", true, err.Error(), err,initialResponse)
+		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Validate", true, err.Error(), err, initialResponse)
 		return err
 	}
 
@@ -155,7 +158,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	// 	RequestHeaders: ac.Request.Headers,
 	// 	RootErr:        nil,
 	// }
-	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Validate_Success", false, "Action验证成功", nil,initialResponse)
+	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Validate_Success", false, "Action验证成功", nil, initialResponse)
 
 	if ac.Request.Headers == nil {
 		ac.Request.Headers = make(map[string]string)
@@ -177,23 +180,9 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 			// 	RootErr:     err,
 			// 	ActionIsEof: true,
 			// }
-			ac.collectLog(aec.LogChan, aec.ExecID, "Action_Process_Depend", true, err.Error(), err,initialResponse)
+			ac.collectLog(aec.LogChan, aec.ExecID, "Action_Process_Depend", true, err.Error(), err, initialResponse)
 			return err
 		}
-	}
-
-	var depends []map[string]interface{}
-	for _, depend := range ac.Request.Dependency {
-		de := make(map[string]interface{})
-		de["ActionKey"] = depend.ActionKey
-		de["DataKey"] = depend.DataKey
-		de["Type"] = depend.Type
-		refer := make(map[string]interface{})
-		refer["DataType"] = depend.Refer.DataType
-		refer["Target"] = depend.Refer.Target
-		refer["Type"] = depend.Refer.Type
-		de["Refer"] = refer
-		depends = append(depends, de)
 	}
 
 	// aec.LogChan <- RunFlowLog{
@@ -211,7 +200,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	// 	Message:        "Action参数化成功",
 	// 	RootErr:        nil,
 	// }
-	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Paramination_Success", false, "Action参数化成功", nil,initialResponse)
+	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Paramination_Success", false, "Action参数化成功", nil, initialResponse)
 
 	if err := ac.beforeAction(); err != nil {
 		// aec.LogChan <- RunFlowLog{
@@ -230,7 +219,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		// 	RootErr:        err,
 		// 	ActionIsEof:    true,
 		// }
-		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Before_Hook", true, err.Error(), err,initialResponse)
+		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Before_Hook", true, err.Error(), err, initialResponse)
 		return err
 	}
 
@@ -253,7 +242,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		// 	RequestHeaders: ac.Request.Headers,
 		// 	ActionIsEof:    true,
 		// }
-		ac.collectLog(aec.LogChan, aec.ExecID, "Action_SendRequest", true, err.Error(), err,initialResponse)
+		ac.collectLog(aec.LogChan, aec.ExecID, "Action_SendRequest", true, err.Error(), err, initialResponse)
 		return err
 	}
 	defer resp.Body.Close()
@@ -273,7 +262,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	// 	RequestDepend:  depends,
 	// 	RequestHeaders: ac.Request.Headers,
 	// }
-	ac.collectLog(aec.LogChan, aec.ExecID, "Action_SendRequest_Success", false, "Action 请求发送成功", nil,initialResponse)
+	ac.collectLog(aec.LogChan, aec.ExecID, "Action_SendRequest_Success", false, "Action 请求发送成功", nil, initialResponse)
 
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, resp.Body)
@@ -295,7 +284,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		// 	RequestHeaders: ac.Request.Headers,
 		// 	ActionIsEof:    true,
 		// }
-		ac.collectLog(aec.LogChan, aec.ExecID, "Action_ReadResponse", true, err.Error(), err,initialResponse)
+		ac.collectLog(aec.LogChan, aec.ExecID, "Action_ReadResponse", true, err.Error(), err, initialResponse)
 		return err
 	}
 
@@ -317,7 +306,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		// 	RequestHeaders: ac.Request.Headers,
 		// 	ActionIsEof:    true,
 		// }
-		ac.collectLog(aec.LogChan, aec.ExecID, "Action_ReadResp", true, "resp转换成map失败", err,initialResponse)
+		ac.collectLog(aec.LogChan, aec.ExecID, "Action_ReadResp", true, "resp转换成map失败", err, initialResponse)
 		return err
 	}
 
@@ -343,7 +332,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		// 	Response:       bodyMap,
 		// 	ActionIsEof:    true,
 		// }
-		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Transform_Response", true, err.Error(), err,bodyMap)
+		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Transform_Response", true, err.Error(), err, bodyMap)
 		return err
 	}
 
@@ -365,7 +354,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		// 	Response:       bodyMap,
 		// 	ActionIsEof:    true,
 		// }
-		ac.collectLog(aec.LogChan, aec.ExecID, "Action_After_Hook", true, err.Error(), err,bodyMap)
+		ac.collectLog(aec.LogChan, aec.ExecID, "Action_After_Hook", true, err.Error(), err, bodyMap)
 		return err
 	}
 
@@ -385,7 +374,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	// 	RequestHeaders: ac.Request.Headers,
 	// 	Response:       bodyMap,
 	// }
-	ac.collectLog(aec.LogChan, aec.ExecID, "Action_After_Success", false, "Action 后置hook 执行成功", nil,bodyMap)
+	ac.collectLog(aec.LogChan, aec.ExecID, "Action_After_Success", false, "Action 后置hook 执行成功", nil, bodyMap)
 
 	if err := ac.expectAction(bodyMap); err != nil {
 		// aec.LogChan <- RunFlowLog{
@@ -405,7 +394,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		// 	Response:       bodyMap,
 		// 	ActionIsEof:    true,
 		// }
-		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Expect", true, err.Error(), errors.Unwrap(err),bodyMap)
+		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Expect", true, err.Error(), errors.Unwrap(err), bodyMap)
 		return err
 	}
 
@@ -425,7 +414,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	// 	RequestHeaders: ac.Request.Headers,
 	// 	Response:       bodyMap,
 	// }
-	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Expect_Success", false, "Action 断言成功", nil,bodyMap)
+	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Expect_Success", false, "Action 断言成功", nil, bodyMap)
 
 	if err = storeResultToExecutor(fmt.Sprintf("%s.%s", ac.SceneID, ac.ActionID), result); err != nil {
 		// aec.LogChan <- RunFlowLog{
@@ -445,7 +434,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		// 	Response:       bodyMap,
 		// 	ActionIsEof:    true,
 		// }
-		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Ouput_Store", true, err.Error(), err,bodyMap)
+		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Ouput_Store", true, err.Error(), err, bodyMap)
 		return err
 	}
 
@@ -466,7 +455,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	// 	Response:       bodyMap,
 	// 	ActionIsEof:    true,
 	// }
-	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Ouput_Store_Success", true, "Action 运行结果存储成功", nil,bodyMap)
+	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Ouput_Store_Success", true, "Action 运行结果存储成功", nil, bodyMap)
 
 	return nil
 }
