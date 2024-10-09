@@ -1,15 +1,15 @@
 Name: lexa-engine-api
-Host: localhost
+Host: 0.0.0.0
 Timeout: 100000
 RedisConf:
-  Host: bja.sealos.run:37370
+  Host: lct-redis-redis.ns-oq9xmbdk.svc:6379
   Type: node
   Pass: "6pccxgql"
   Tls: false
 Database:
   mongo: 
-    mongoHost: bja.sealos.run
-    mongoPort: 36911
+    mongoHost: lct-mongo-mongodb.ns-oq9xmbdk.svc
+    mongoPort: 27017
     mongoUser: root
     mongoPasswd: svhthtqk
     database: lct
