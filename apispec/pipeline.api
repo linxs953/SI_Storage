@@ -1,0 +1,30 @@
+syntax = "v1"
+
+
+@server(
+    prefix: /api/v1/pipeline
+    group: pipeline
+)
+
+service lexa-engine-api {
+	@handler getOne
+	get /:pipelineId/getOne returns ()
+
+    @handler getAll
+    get /getAll returns ()
+
+    @handler create
+    post /create returns ()
+
+    @handler update
+    post /:pipelineId/update returns()
+
+    @handler delete
+    delete /delete returns()
+
+    @handler start
+    post /start returns()
+
+    @handler status
+    get /:pipelineId/status returns()
+}

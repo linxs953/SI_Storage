@@ -1,0 +1,19 @@
+syntax = "v1"
+
+@server(
+    prefix: /cache
+    group: cache
+)
+
+
+
+service lexa-engine-api {
+    @handler tdInit
+	post /testdata/init () returns (TDInitResp)
+}
+
+
+type TDInitResp {
+    Code int 
+    Message string
+}

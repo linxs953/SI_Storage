@@ -1,0 +1,21 @@
+syntax = "v1"
+
+
+@server(
+    prefix: /sync/record/
+    group: syncTask
+)
+
+
+
+
+service lexa-engine-api {
+    @handler getSyncRecord
+	get /get() returns ()    
+
+    @handler newSyncRecord
+	get /create() returns ()    
+
+    @handler updateSyncRecord
+	get /update() returns ()    
+}

@@ -1,0 +1,129 @@
+syntax = "v1"
+
+@server(
+	prefix: /scene
+	group: scene
+)
+
+service lexa-engine-api {
+	@handler newScene
+	post /new(CreateSceneDto) returns (CreateSceneVO)
+
+	@handler modifyScene
+	put /update(UpdateSceneDto) returns(UpdateSceneVO)
+
+	@handler deleteScene
+	delete /delete(DeleteSceneDto) returns(DeleteSceneVO)
+
+	@handler getScene
+	get /get(GetSceneDto) returns(GetSceneVO)
+
+
+	@handler  getSceneList
+	get /allScenes (GetSceneListDto) returns(GetSceneListVO)
+
+
+	@handler searchScenes
+	get /search (SearchScenesDto) returns (SearchScentVo)
+	
+
+}
+
+
+type SearchScenesDto {
+	Keyword string `json:"keyword"`
+}
+
+type SearchScentVo {
+	Code int `json:"code"`
+	Message string `json:"message"`
+	Data []map[string]interface{} `json:"data"`
+}
+
+type GetSceneListDto {
+	Page int `json:"page"`
+	PageSize int `json:"pageSize"`
+}
+
+type GetSceneListVO {
+	Code int `json:"code"`
+	Message string `json:"message"`
+	Data []map[string]interface{} `json:"data"`
+}
+
+type CreateSceneDto {
+	scname      string `json:"scname"`
+	author      string `json:"author"`
+	description string `json:"description"`
+	actions     []string `json:"actions"`
+	key         string `json:"key"`
+	env         string `json:"env"`
+}
+
+type CreateSceneVO {
+	Code int `json:"code"`
+	Message string `json:"message"`
+	Data CreateSceneData `json:"data"`
+
+}
+
+type CreateSceneData  {
+		SceneId string `json:"sceneId,omitempty"`
+		SceneName string `json:"scname,omitempty"`
+		Author string `json:"author,omitempty"`
+}
+
+type GetSceneDto {
+	scid string `json:"scid"`
+}
+
+type GetSceneVO {
+	Code int `json:"code"`
+	Message string `json:"message"`
+	Data GetSceneData `json:"data,omitempty"`
+
+}
+
+type GetSceneData {
+	ID string `json:"id,omitempty"`
+	Author string `json:"author,omitempty"`
+	SceneName string `json:"scname,omitempty"`
+	Description string `json:"description,omitempty"`
+	SceneId string `json:"sceneId,omitempty"`
+	SearchKey string `json:"searchKey,omitempty"`
+	Env string `json:"env,omitempty"`
+	Timeout int `json:"timeout,omitempty"`
+	Retry int `json:"retry,omitempty"`
+	Actions []map[string]interface{} `json:"actions,omitempty"`
+	CreateAt string `json:"createAt,omitempty"`
+	UpdateAt string `json:"updateAt,omitempty"`
+}
+
+type DeleteSceneDto {
+	scid string `json:"scid"`
+}
+
+type DeleteSceneVO {
+	Code int `json:"code"`
+	Message string `json:"message"`
+	Data map[string]interface{} `json:"data"`
+}
+
+type UpdateSceneDto {
+	scid string `json:"scid"`
+	data SceneUpdate `json:"data"`
+}
+
+type SceneUpdate {
+	scname string `json:"scname"`
+	description string `json:"description"`
+	timeout int `json:"timeout"`
+	retry int `json:"retry"`
+	actions []map[string]interface{} `json:"actions"`
+}
+
+type UpdateSceneVO {
+	Code int `json:"code"`
+	Message string `json:"message"`
+	Data GetSceneData `json:"data,omitempty"`
+}

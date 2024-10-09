@@ -1,0 +1,57 @@
+syntax = "v1"
+
+
+
+type ApiDetailDto {
+    ApiId string `path:"apiId"`
+}
+
+type ApiListDto {
+    PageNum int `query:"pageNum"`
+    PageSize int `query:"pageSize"`
+}
+
+type ApiDetailResp {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data map[string]interface{} `json:"data"`
+}
+
+type ApiListResp {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Total int `json:"total"`
+    CurrentPage int `json:"currentPage"`
+    TotalNum int `json:"totalNum"`
+    Data []map[string]interface{} `json:"data"`
+}
+
+type ApiSearchResp {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data []map[string]interface{} `json:"data"`
+}
+
+
+type SearchDto {
+    Keyword string `query:"keyword"`
+}
+
+@server(
+    prefix: /api
+    group: apiInfo
+)
+
+
+
+service lexa-engine-api {
+    @handler getApiDetail
+	get /:apiId/getApiDetail(ApiDetailDto) returns (ApiDetailResp)
+
+    @handler getApiList
+	get /getApiList(ApiListDto) returns (ApiListResp)
+
+    @handler searchApi
+	get /searchApi(SearchDto) returns (ApiSearchResp)
+    
+}

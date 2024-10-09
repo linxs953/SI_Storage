@@ -1,0 +1,250 @@
+syntax = "v1"
+
+
+
+@server(
+    prefix: /task
+    group: task
+)
+
+service lexa-engine-api {
+    @handler getSceneWithId
+	get /getSceneWithId(GetSceneWithIdDto) returns (GetSceneWithIdResp)
+
+    @handler getPreActions
+	get /getPreActions(GetPreActionsDto) returns (GetPreActionsResp)
+
+    @handler createTask
+	post /create(CreateTaskDto) returns (CreateTaskResp)
+
+    @handler updateTask
+	post /update(UpdateTaskDto) returns (UpdateTaskResp)
+
+    @handler deleteTask
+	delete /delete(DeleteTaskDto) returns (DeleteTaskResp)
+
+    @handler getTask
+	get /getOne(GetTaskDto) returns (GetTaskResp)
+
+    @handler getTaskList
+	get /getList(GetTaskListDto) returns (GetTaskListResp)
+
+    @handler runTask
+	post /run/:taskId (RunTaskDto) returns (RunTaskResp)
+
+    @handler getAllTaskRunRecord
+	get /getAllTaskRunRecord(GetAllTaskRunRecordDto) returns (GetAllTaskRunRecordResp)
+
+    @handler getRunDetail
+	get /getDetail (GetRunDetailDto) returns (GetRunDetailResp)
+
+    @handler deleteTaskRunRecord
+	delete /deleteRecord(DeleteTaskRunRecordDto) returns (DeleteTaskRunRecordResp)
+    
+}
+
+
+
+type DeleteTaskRunRecordDto {
+    ExecId string `json:"execId"`
+}
+
+type DeleteTaskRunRecordResp {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data interface{} `json:"data"`
+}
+
+type GetRunDetailDto {
+    TaskId string `json:"taskId"`
+    ExecId string `json:"execId"`
+}
+
+type GetRunDetailResp {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    TaskMeta TaskMeta `json:"taskMeta"`
+    TaskRun TaskRecord `json:"taskRun"`
+}
+
+
+type GetAllTaskRunRecordDto {
+    TaskId string `json:"taskId"`
+    PageSize string `json:"pageSize"`
+    PageNum string `json:"pageNum"`
+}
+
+type GetAllTaskRunRecordResp {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    TaskMeta TaskMeta `json:"taskMeta"`
+    TaskRun []TaskRecord `json:"taskRun"`
+    TotalNum int `json:"totalNum"`
+    TotalPage int `json:"totalPage"`
+    CurrentPage int `json:"currentPage"`
+}
+
+type TaskMeta {
+    TaskName string `json:"taskName"`
+    TaskID string `json:"taskId"`
+    Author string `json:"author"`
+    SceneCount int `json:"sceneCount"`
+    CreateTime string `json:"createTime"`
+    UpdateTime string `json:"updateTime"`
+}
+
+
+type TaskRecord {
+    RunId string `json:"runId"`
+    TaskId string `json:"taskId"`
+    State int `json:"state"`
+    SceneRecords []map[string]interface{} `json:"sceneRecords"`
+    CreateTime string `json:"createTime"`
+    FinishTime string `json:"finishTime"`
+    // Message string `json:"message"`
+}
+
+type GetSceneWithIdDto {
+    TaskID string `json:"taskId"`
+}
+
+type GetSceneWithIdResp {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data GetTaskSceneData `json:"data"`
+}
+
+type GetTaskSceneData {
+    Scenes []string `json:"scenes"`
+    SceneInfo map[string]interface{} `json:"sceneInfo"`
+}
+
+
+type GetPreActionsDto {
+    DependRefer string  `json:"dependRefer"`
+    CurrentAcRefer string `json:"currentAcRefer"`
+}
+
+type GetPreActionsResp {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data []map[string]interface{} `json:"data"`
+}
+
+type TaskInfo {
+    TaskId string `json:"taskId"`
+    TaskName string `json:"taskName"`
+    Author string `json:"author"`
+    TaskType string `json:"taskType"`
+    TaskSpec interface{} `json:"taskSpec"`
+    CreateTime string `json:"createTime"`
+    UpdateTime string `json:"updateTime"`
+}
+
+
+type RunResp {
+    RunId string `json:"runId"`
+    TaskId string `json:"taskId"`
+    TaskSpec interface{} `json:"taskSpec"`
+    State int `json:"state"`
+    Message string `json:"message"`
+}
+
+// 创建任务
+type CreateTaskDto {
+    TaskName string `json:"taskName"`
+    Author string `json:"author"`
+    SceneList []SceneCount `json:"sceneList"`
+}
+
+type SceneCount {
+    SceneId string `json:"sceneId"`
+    Count int `json:"count"`
+}
+
+type CreateTaskResp {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data interface{} `json:"data"`
+}
+
+
+// 更新任务
+type UpdateTaskDto {
+    TaskId string `json:"taskId"`
+    TaskName string `json:"taskName"`
+    TaskType string `json:"taskType"`
+    Author string `json:"author"`
+    TaskSpec []SceneInTask `json:"taskSpec"`
+}
+
+type SceneInTask struct {
+    SceneId string `json:"sceneId"`
+    SceneName string  `json:"sceneName"`
+    Description string  `json:"description"`
+    Author string `json:"author"`
+    Retry int `json:"retry"`
+    SearchKey string  `json:"searchKey"`
+    EnvKey string  `json:"envKey"`
+    Timeout int  `json:"timeout"`
+    Actions []map[string]interface{} `json:"actions"`
+}
+
+type UpdateTaskResp {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data interface{} `json:"data"`
+}
+
+
+// 删除任务
+type DeleteTaskDto {
+    TaskId string `json:"taskId"`
+}
+
+type DeleteTaskResp {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data interface{} `json:"data"`
+}
+
+
+// 获取任务详情
+type GetTaskDto {
+    TaskId string `json:"taskId"`
+}
+
+type  GetTaskResp struct {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data TaskInfo `json:"data"`
+}
+
+
+// 获取任务列表
+type GetTaskListDto {
+    PageNum int `json:"pageNum"`
+    PageSize int `json:"pageSize"`
+}
+
+type GetTaskListResp struct {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data []map[string]interface{} `json:"data"`
+    TotalNum int `json:"totalNum"`
+    TotalPage int `json:"totalPage"`
+    CurrentPage int `json:"currentPage"`
+}
+
+// 运行任务
+type RunTaskDto {
+    TaskId string `path:"taskId"`
+}
+
+type RunTaskResp struct {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data RunResp `json:"data"`
+}
+
+
