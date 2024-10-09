@@ -1,7 +1,7 @@
 .idea
 # etc/
 # apispec/
-lexa-engine.api
+# lexa-engine.api
 .DS_Store
-*.yaml
+# *.yaml
 *.txt

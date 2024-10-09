@@ -1,0 +1,42 @@
+Name: lexa-engine-api
+Host: localhost
+Timeout: 100000
+RedisConf:
+  Host: bja.sealos.run:37370
+  Type: node
+  Pass: "6pccxgql"
+  Tls: false
+Database:
+  mongo: 
+    mongoHost: bja.sealos.run
+    mongoPort: 36911
+    mongoUser: root
+    mongoPasswd: svhthtqk
+    database: lct
+Port: 8000
+KqPusherConf:
+  Brokers:
+    - bja.sealos.run:9092
+  Topic: api-sync
+  TaskRunTopic: task_run
+KqConsumerConf:
+  Name: kqConsumer
+  Brokers:
+    - bja.sealos.run:9092
+  Group: kqConsumer
+  Topic: api-sync
+  Offset: first
+  Consumers: 2
+  Processors: 2
+TaskConsumerConf:
+  Name: taskConsumer
+  Brokers:
+    - bja.sealos.run:9092
+  Group: taskConsumer
+  Topic: task_run
+  Offset: first
+  Consumers: 1
+  Processors: 1
+Log:
+  Encoding: plain
+  # Level: debug

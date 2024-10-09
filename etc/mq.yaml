@@ -1,0 +1,16 @@
+Name: kafka
+Host: 0.0.0.0
+Port: 8888
+KqPusherConf:
+  Brokers:
+    - 47.120.49.73:9092
+  Topic: api-sync
+KqConsumerConf:
+  Name: kqConsumer
+  Brokers:
+    - 47.120.49.73:9092
+  Group: kqConsumer
+  Topic: api-sync
+  Offset: first
+  Consumers: 8
+  Processors: 8

@@ -1,0 +1,18 @@
+syntax = "v1"
+
+import "./apispec/sync.api"
+
+import "./apispec/syncrecord.api"
+import "./apispec/task.api"
+import "./apispec/cache.api"
+import "./apispec/scene.api"
+import "./apispec/api_.api"
+
+type IndexVO {
+	Message string `json:"message"`
+}
+
+service lexa-engine-api {
+	@handler index
+	get / returns (IndexVO)
+}
