@@ -1,28 +1,7 @@
 syntax = "v1"
 
 
-type StartDto struct {
-    JobType string `json:"jobType"`
-    JobSpec string `json:"jobSpec"`
-}
 
-type StartResp struct {
-    Code int `json:"code"`
-    Message string `json:"messsage"`
-    Data interface{} `json:"data"`
-}
-
-type SyncDto {
-    Type string `json:"type"`
-    DocUrl string `json:"docUrl"`
-}
-
-
-type SyncVO {
-    Code int `json:"code"`
-    Message string `json:"messsage"`
-    Data map[string]interface{} `json:"data"`
-}
 
 
 @server(
@@ -30,7 +9,7 @@ type SyncVO {
     group: syncApi
 )
 
-service lexa-engine-api {
+service LexaEngineApi {
     // @handler syncapi
 	// post /apifox(StartDto) returns (StartResp)
 
@@ -38,4 +17,28 @@ service lexa-engine-api {
 	post /api (SyncDto) returns (SyncVO)
 
     
+}
+
+
+type StartDto  {
+    JobType string `json:"jobType"`
+    JobSpec string `json:"jobSpec"`
+}
+
+type StartResp  {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data interface{} `json:"data"`
+}
+
+type SyncDto  {
+    Type string `json:"type"`
+    DocUrl string `json:"docUrl"`
+}
+
+
+type SyncVO  {
+    Code int `json:"code"`
+    Message string `json:"messsage"`
+    Data map[string]interface{} `json:"data"`
 }

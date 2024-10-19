@@ -39,13 +39,14 @@ func (l *GetTaskLogic) GetTask(req *types.GetTaskDto) (resp *types.GetTaskResp, 
 		return
 	}
 	resp.Data = types.TaskInfo{
-		TaskId:     taskInfo.TaskID,
-		TaskName:   taskInfo.TaskName,
-		Author:     taskInfo.Author,
-		TaskType:   "autoapi",
-		TaskSpec:   taskInfo.Scenes,
-		CreateTime: taskInfo.CreateAt.Format("2006-01-02 15:04:05"),
-		UpdateTime: taskInfo.UpdateAt.Format("2006-01-02 15:04:05"),
+		TaskId:      taskInfo.TaskID,
+		TaskName:    taskInfo.TaskName,
+		Author:      taskInfo.Author,
+		TaskType:    "autoapi",
+		Description: taskInfo.Description,
+		TaskSpec:    taskInfo.Scenes,
+		CreateTime:  taskInfo.CreateAt.Format("2006-01-02 15:04:05"),
+		UpdateTime:  taskInfo.UpdateAt.Format("2006-01-02 15:04:05"),
 	}
 	return
 }

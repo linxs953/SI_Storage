@@ -7,7 +7,7 @@ syntax = "v1"
 
 
 
-service lexa-engine-api {
+service LexaEngineApi {
     @handler tdInit
 	post /testdata/init () returns (TDInitResp)
 }

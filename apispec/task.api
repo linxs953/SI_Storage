@@ -7,7 +7,7 @@ syntax = "v1"
     group: task
 )
 
-service lexa-engine-api {
+service LexaEngineApi {
     @handler getSceneWithId
 	get /getSceneWithId(GetSceneWithIdDto) returns (GetSceneWithIdResp)
 
@@ -135,6 +135,7 @@ type TaskInfo {
     TaskId string `json:"taskId"`
     TaskName string `json:"taskName"`
     Author string `json:"author"`
+    Description string `json:"description"`
     TaskType string `json:"taskType"`
     TaskSpec interface{} `json:"taskSpec"`
     CreateTime string `json:"createTime"`
@@ -170,15 +171,16 @@ type CreateTaskResp {
 
 
 // 更新任务
-type UpdateTaskDto {
+type UpdateTaskDto  {
     TaskId string `json:"taskId"`
     TaskName string `json:"taskName"`
     TaskType string `json:"taskType"`
     Author string `json:"author"`
+    Description string `json:"description"`
     TaskSpec []SceneInTask `json:"taskSpec"`
 }
 
-type SceneInTask struct {
+type SceneInTask  {
     SceneId string `json:"sceneId"`
     SceneName string  `json:"sceneName"`
     Description string  `json:"description"`
@@ -214,7 +216,7 @@ type GetTaskDto {
     TaskId string `json:"taskId"`
 }
 
-type  GetTaskResp struct {
+type  GetTaskResp  {
     Code int `json:"code"`
     Message string `json:"messsage"`
     Data TaskInfo `json:"data"`
@@ -227,7 +229,7 @@ type GetTaskListDto {
     PageSize int `json:"pageSize"`
 }
 
-type GetTaskListResp struct {
+type GetTaskListResp  {
     Code int `json:"code"`
     Message string `json:"messsage"`
     Data []map[string]interface{} `json:"data"`
@@ -241,7 +243,7 @@ type RunTaskDto {
     TaskId string `path:"taskId"`
 }
 
-type RunTaskResp struct {
+type RunTaskResp  {
     Code int `json:"code"`
     Message string `json:"messsage"`
     Data RunResp `json:"data"`

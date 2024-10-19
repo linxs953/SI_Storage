@@ -56,6 +56,7 @@ type DataSourceSpec struct {
 }
 
 type DependInject struct {
+	Name          string
 	DependId      string
 	Type          string
 	DataKey       string

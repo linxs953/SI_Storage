@@ -2,14 +2,11 @@ syntax = "v1"
 
 
 @server(
-    prefix: /sync/record/
+    prefix: /sync/record
     group: syncTask
 )
 
-
-
-
-service lexa-engine-api {
+service LexaEngineApi {
     @handler getSyncRecord
 	get /get() returns ()    
 
