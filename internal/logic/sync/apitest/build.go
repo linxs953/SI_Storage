@@ -200,7 +200,6 @@ func mashralConfig(file string) (tc types.ApiSuit) {
 					}
 				}
 			}
-			// logx.Error(tc.Steps[idx].Expect.Fields[edx].Desire)
 		}
 	}
 	return

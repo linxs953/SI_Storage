@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -115,49 +116,13 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		return nil
 	}
 
-	// aec.LogChan <- RunFlowLog{
-	// 	LogType:     "ACTION",
-	// 	EventId:     ac.ActionID,
-	// 	EventName:   ac.ActionName,
-	// 	RunId:       aec.ExecID,
-	// 	SceneID:     ac.SceneID,
-	// 	TriggerNode: "Action_Start",
-	// 	Message:     fmt.Sprintf("开始执行Action: %s", ac.ActionID),
-	// 	RootErr:     nil,
-	// }
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Start", false, fmt.Sprintf("开始执行Action: %s", ac.ActionID), nil, initialResponse)
 
 	if err = ac.validate(); err != nil {
-		logx.Error(err)
-		// aec.LogChan <- RunFlowLog{
-		// 	LogType:     "ACTION",
-		// 	EventId:     ac.ActionID,
-		// 	EventName:   ac.ActionName,
-		// 	RunId:       aec.ExecID,
-		// 	SceneID:     ac.SceneID,
-		// 	TriggerNode: "Action_Validate",
-		// 	Message:     err.Error(),
-		// 	RootErr:     err,
-		// 	ActionIsEof: true,
-		// }
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Validate", true, err.Error(), err, initialResponse)
 		return err
 	}
 
-	// aec.LogChan <- RunFlowLog{
-	// 	LogType:        "ACTION",
-	// 	EventId:        ac.ActionID,
-	// 	EventName:      ac.ActionName,
-	// 	RunId:          aec.ExecID,
-	// 	SceneID:        ac.SceneID,
-	// 	TriggerNode:    "Action_Validate_Success",
-	// 	Message:        "Action验证成功",
-	// 	RequestURL:     ac.getActionPath(),
-	// 	RequestMethod:  ac.Request.Method,
-	// 	RequestPayload: ac.Request.Payload,
-	// 	RequestHeaders: ac.Request.Headers,
-	// 	RootErr:        nil,
-	// }
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Validate_Success", false, "Action验证成功", nil, initialResponse)
 
 	if ac.Request.Headers == nil {
@@ -165,60 +130,15 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	}
 
 	for _, depend := range ac.Request.Dependency {
-		if depend.Type != "1" {
-			continue
-		}
-		if err = ac.handleActionDepend(fetchDependency, fmt.Sprintf("%s.%s", aec.ExecID, depend.ActionKey), depend); err != nil {
-			// aec.LogChan <- RunFlowLog{
-			// 	LogType:     "ACTION",
-			// 	EventId:     ac.ActionID,
-			// 	EventName:   ac.ActionName,
-			// 	RunId:       aec.ExecID,
-			// 	SceneID:     ac.SceneID,
-			// 	TriggerNode: "Action_Process_Depend",
-			// 	Message:     err.Error(),
-			// 	RootErr:     err,
-			// 	ActionIsEof: true,
-			// }
+		if err = ac.handleActionDepend(fetchDependency, aec.ExecID, depend); err != nil {
 			ac.collectLog(aec.LogChan, aec.ExecID, "Action_Process_Depend", true, err.Error(), err, initialResponse)
 			return err
 		}
 	}
-
-	// aec.LogChan <- RunFlowLog{
-	// 	LogType:        "ACTION",
-	// 	EventId:        ac.ActionID,
-	// 	EventName:      ac.ActionName,
-	// 	RunId:          aec.ExecID,
-	// 	SceneID:        ac.SceneID,
-	// 	RequestURL:     ac.getActionPath(),
-	// 	RequestMethod:  ac.Request.Method,
-	// 	RequestPayload: ac.Request.Payload,
-	// 	RequestDepend:  depends,
-	// 	RequestHeaders: ac.Request.Headers,
-	// 	TriggerNode:    "Action_Paramination_Success",
-	// 	Message:        "Action参数化成功",
-	// 	RootErr:        nil,
-	// }
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Paramination_Success", false, "Action参数化成功", nil, initialResponse)
 
 	if err := ac.beforeAction(); err != nil {
-		// aec.LogChan <- RunFlowLog{
-		// 	LogType:        "ACTION",
-		// 	EventId:        ac.ActionID,
-		// 	EventName:      ac.ActionName,
-		// 	RunId:          aec.ExecID,
-		// 	SceneID:        ac.SceneID,
-		// 	RequestURL:     ac.getActionPath(),
-		// 	RequestMethod:  ac.Request.Method,
-		// 	RequestPayload: ac.Request.Payload,
-		// 	RequestDepend:  depends,
-		// 	RequestHeaders: ac.Request.Headers,
-		// 	TriggerNode:    "Action_Before_Hook",
-		// 	Message:        err.Error(),
-		// 	RootErr:        err,
-		// 	ActionIsEof:    true,
-		// }
+
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Before_Hook", true, err.Error(), err, initialResponse)
 		return err
 	}
@@ -226,86 +146,24 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	logx.Error("开始发送请求")
 	resp, err := ac.sendRequest(ctx)
 	if err != nil {
-		// aec.LogChan <- RunFlowLog{
-		// 	LogType:        "ACTION",
-		// 	EventId:        ac.ActionID,
-		// 	EventName:      ac.ActionName,
-		// 	RunId:          aec.ExecID,
-		// 	SceneID:        ac.SceneID,
-		// 	TriggerNode:    "Action_SendRequest",
-		// 	Message:        err.Error(),
-		// 	RootErr:        err,
-		// 	RequestURL:     ac.getActionPath(),
-		// 	RequestMethod:  ac.Request.Method,
-		// 	RequestPayload: ac.Request.Payload,
-		// 	RequestDepend:  depends,
-		// 	RequestHeaders: ac.Request.Headers,
-		// 	ActionIsEof:    true,
-		// }
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_SendRequest", true, err.Error(), err, initialResponse)
 		return err
 	}
 	defer resp.Body.Close()
 
-	// aec.LogChan <- RunFlowLog{
-	// 	LogType:        "ACTION",
-	// 	EventId:        ac.ActionID,
-	// 	RunId:          aec.ExecID,
-	// 	EventName:      ac.ActionName,
-	// 	SceneID:        ac.SceneID,
-	// 	TriggerNode:    "Action_SendRequest_Success",
-	// 	Message:        "Action 请求发送成功",
-	// 	RootErr:        nil,
-	// 	RequestURL:     ac.getActionPath(),
-	// 	RequestMethod:  ac.Request.Method,
-	// 	RequestPayload: ac.Request.Payload,
-	// 	RequestDepend:  depends,
-	// 	RequestHeaders: ac.Request.Headers,
-	// }
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_SendRequest_Success", false, "Action 请求发送成功", nil, initialResponse)
 
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, resp.Body)
 
 	if err != nil {
-		// aec.LogChan <- RunFlowLog{
-		// 	LogType:        "ACTION",
-		// 	EventId:        ac.ActionID,
-		// 	EventName:      ac.ActionName,
-		// 	RunId:          aec.ExecID,
-		// 	SceneID:        ac.SceneID,
-		// 	TriggerNode:    "Action_ReadResponse",
-		// 	Message:        err.Error(),
-		// 	RootErr:        err,
-		// 	RequestURL:     ac.getActionPath(),
-		// 	RequestMethod:  ac.Request.Method,
-		// 	RequestPayload: ac.Request.Payload,
-		// 	RequestDepend:  depends,
-		// 	RequestHeaders: ac.Request.Headers,
-		// 	ActionIsEof:    true,
-		// }
+
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_ReadResponse", true, err.Error(), err, initialResponse)
 		return err
 	}
 
 	bodyMap := make(map[string]interface{})
 	if err := json.Unmarshal(buf.Bytes(), &bodyMap); err != nil {
-		// aec.LogChan <- RunFlowLog{
-		// 	LogType:        "ACTION",
-		// 	EventId:        ac.ActionID,
-		// 	EventName:      ac.ActionName,
-		// 	RunId:          aec.ExecID,
-		// 	SceneID:        ac.SceneID,
-		// 	TriggerNode:    "Action_ReadResp",
-		// 	Message:        "resp转换成map失败",
-		// 	RootErr:        err,
-		// 	RequestURL:     ac.getActionPath(),
-		// 	RequestMethod:  ac.Request.Method,
-		// 	RequestPayload: ac.Request.Payload,
-		// 	RequestDepend:  depends,
-		// 	RequestHeaders: ac.Request.Headers,
-		// 	ActionIsEof:    true,
-		// }
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_ReadResp", true, "resp转换成map失败", err, initialResponse)
 		return err
 	}
@@ -315,146 +173,33 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 
 	result := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(bodyStr), &result); err != nil {
-		// aec.LogChan <- RunFlowLog{
-		// 	LogType:        "ACTION",
-		// 	EventId:        ac.ActionID,
-		// 	EventName:      ac.ActionName,
-		// 	RunId:          aec.ExecID,
-		// 	SceneID:        ac.SceneID,
-		// 	TriggerNode:    "Action_Transform_Response",
-		// 	Message:        err.Error(),
-		// 	RootErr:        err,
-		// 	RequestURL:     ac.getActionPath(),
-		// 	RequestMethod:  ac.Request.Method,
-		// 	RequestPayload: ac.Request.Payload,
-		// 	RequestDepend:  depends,
-		// 	RequestHeaders: ac.Request.Headers,
-		// 	Response:       bodyMap,
-		// 	ActionIsEof:    true,
-		// }
+
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Transform_Response", true, err.Error(), err, bodyMap)
 		return err
 	}
 
 	if err := ac.afterAction(); err != nil {
-		// aec.LogChan <- RunFlowLog{
-		// 	LogType:        "ACTION",
-		// 	EventId:        ac.ActionID,
-		// 	EventName:      ac.ActionName,
-		// 	RunId:          aec.ExecID,
-		// 	SceneID:        ac.SceneID,
-		// 	TriggerNode:    "Action_After_Hook",
-		// 	Message:        err.Error(),
-		// 	RootErr:        err,
-		// 	RequestURL:     ac.getActionPath(),
-		// 	RequestMethod:  ac.Request.Method,
-		// 	RequestPayload: ac.Request.Payload,
-		// 	RequestDepend:  depends,
-		// 	RequestHeaders: ac.Request.Headers,
-		// 	Response:       bodyMap,
-		// 	ActionIsEof:    true,
-		// }
+
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_After_Hook", true, err.Error(), err, bodyMap)
 		return err
 	}
 
-	// aec.LogChan <- RunFlowLog{
-	// 	LogType:        "ACTION",
-	// 	EventId:        ac.ActionID,
-	// 	EventName:      ac.ActionName,
-	// 	RunId:          aec.ExecID,
-	// 	SceneID:        ac.SceneID,
-	// 	TriggerNode:    "Action_After_Success",
-	// 	Message:        "Action 后置hook 执行成功",
-	// 	RootErr:        nil,
-	// 	RequestURL:     ac.getActionPath(),
-	// 	RequestMethod:  ac.Request.Method,
-	// 	RequestPayload: ac.Request.Payload,
-	// 	RequestDepend:  depends,
-	// 	RequestHeaders: ac.Request.Headers,
-	// 	Response:       bodyMap,
-	// }
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_After_Success", false, "Action 后置hook 执行成功", nil, bodyMap)
 
 	if err := ac.expectAction(bodyMap); err != nil {
-		// aec.LogChan <- RunFlowLog{
-		// 	LogType:        "ACTION",
-		// 	EventId:        ac.ActionID,
-		// 	EventName:      ac.ActionName,
-		// 	RunId:          aec.ExecID,
-		// 	SceneID:        ac.SceneID,
-		// 	TriggerNode:    "Action_Expect",
-		// 	Message:        err.Error(),
-		// 	RootErr:        errors.Unwrap(err),
-		// 	RequestURL:     ac.getActionPath(),
-		// 	RequestMethod:  ac.Request.Method,
-		// 	RequestPayload: ac.Request.Payload,
-		// 	RequestDepend:  depends,
-		// 	RequestHeaders: ac.Request.Headers,
-		// 	Response:       bodyMap,
-		// 	ActionIsEof:    true,
-		// }
+
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Expect", true, err.Error(), errors.Unwrap(err), bodyMap)
 		return err
 	}
 
-	// aec.LogChan <- RunFlowLog{
-	// 	LogType:        "ACTION",
-	// 	EventId:        ac.ActionID,
-	// 	EventName:      ac.ActionName,
-	// 	RunId:          aec.ExecID,
-	// 	SceneID:        ac.SceneID,
-	// 	TriggerNode:    "Action_Expect_Success",
-	// 	Message:        "Action 断言成功",
-	// 	RootErr:        nil,
-	// 	RequestURL:     ac.getActionPath(),
-	// 	RequestMethod:  ac.Request.Method,
-	// 	RequestPayload: ac.Request.Payload,
-	// 	RequestDepend:  depends,
-	// 	RequestHeaders: ac.Request.Headers,
-	// 	Response:       bodyMap,
-	// }
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Expect_Success", false, "Action 断言成功", nil, bodyMap)
 
 	if err = storeResultToExecutor(fmt.Sprintf("%s.%s", ac.SceneID, ac.ActionID), result); err != nil {
-		// aec.LogChan <- RunFlowLog{
-		// 	LogType:        "ACTION",
-		// 	EventId:        ac.ActionID,
-		// 	EventName:      ac.ActionName,
-		// 	RunId:          aec.ExecID,
-		// 	SceneID:        ac.SceneID,
-		// 	TriggerNode:    "Action_Ouput_Store",
-		// 	Message:        err.Error(),
-		// 	RootErr:        err,
-		// 	RequestURL:     ac.getActionPath(),
-		// 	RequestMethod:  ac.Request.Method,
-		// 	RequestPayload: ac.Request.Payload,
-		// 	RequestDepend:  depends,
-		// 	RequestHeaders: ac.Request.Headers,
-		// 	Response:       bodyMap,
-		// 	ActionIsEof:    true,
-		// }
+
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Ouput_Store", true, err.Error(), err, bodyMap)
 		return err
 	}
 
-	// aec.LogChan <- RunFlowLog{
-	// 	LogType:        "ACTION",
-	// 	EventId:        ac.ActionID,
-	// 	EventName:      ac.ActionName,
-	// 	RunId:          aec.ExecID,
-	// 	SceneID:        ac.SceneID,
-	// 	TriggerNode:    "Action_Ouput_Store_Success",
-	// 	Message:        "Action 运行结果存储成功",
-	// 	RootErr:        nil,
-	// 	RequestURL:     ac.getActionPath(),
-	// 	RequestMethod:  ac.Request.Method,
-	// 	RequestPayload: ac.Request.Payload,
-	// 	RequestDepend:  depends,
-	// 	RequestHeaders: ac.Request.Headers,
-	// 	Response:       bodyMap,
-	// 	ActionIsEof:    true,
-	// }
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Ouput_Store_Success", true, "Action 运行结果存储成功", nil, bodyMap)
 
 	return nil
@@ -511,7 +256,6 @@ func extractFromResp(resp map[string]interface{}, dataKey string) (interface{}, 
 	// current := resp
 	var current interface{}
 	current = resp
-	logx.Error(dataKey)
 	for _, part := range strings.Split(dataKey, ".") {
 		if index, err := strconv.Atoi(part); err == nil {
 			// 处理数组索引
@@ -542,92 +286,179 @@ func extractFromResp(resp map[string]interface{}, dataKey string) (interface{}, 
 
 // Action执行阶段，只有场景依赖数据是需要动态获取的，所以这个时候只需要处理depend.type=1的数据即可
 func (ac *Action) handleActionDepend(fetch FetchDepend, key string, depend ActionDepend) error {
+	return ac.getAndInjectDataToField(fetch, key, depend)
+}
+
+func (ac *Action) getAndInjectDataToField(fetch FetchDepend, execId string, depend ActionDepend) error {
+	if !depend.IsMultiDs {
+		// 单数据源
+		if len(depend.DataSource) == 0 {
+			return nil
+		}
+		if depend.DataSource[0].Type != "1" {
+			return nil
+		}
+		val, err := ac.fetchDataFromScene(fetch, depend.DataSource[0].DataKey, fmt.Sprintf("%s.%s", execId, depend.DataSource[0].ActionKey))
+		if err != nil {
+			return err
+		}
+
+		// 单数据源，直接获取第一个元素，获取到数据源后，直接替换到Output.Value中
+		depend.Output.Value = val
+
+	} else {
+		// 多数据源
+		dataSourceMap := make(map[string]DependInject)
+		for _, ds := range depend.DataSource {
+			dataSourceMap[ds.DependId] = ds
+		}
+
+		for _, dsSpec := range depend.DsSpec {
+			dataSource := dataSourceMap[dsSpec.DependId]
+			if dataSource.Type != "1" {
+				continue
+			}
+			logx.Errorf("获取上游的引用: %v", fmt.Sprintf("%s.%s", execId, dataSource.ActionKey))
+			val, err := ac.fetchDataFromScene(fetch, dataSource.DataKey, fmt.Sprintf("%s.%s", execId, dataSource.ActionKey))
+			if err != nil {
+				return err
+			}
+
+			logx.Errorf("获取数据源: %v", val)
+
+			// 读取旧值
+			if depend.Output.Value == nil {
+				depend.Output.Value = ""
+			}
+			oldVal, ok := depend.Output.Value.(string)
+			if !ok {
+				return fmt.Errorf("依赖 [%s] 断言string类型错误", depend.Refer.Target)
+			}
+
+			// 序列化新值
+			newVal, err := ac.serializeData(val)
+			if err != nil {
+				return err
+			}
+			depend.Output.Value = strings.Replace(oldVal, fmt.Sprintf("$$%s", dsSpec.FieldName), newVal, -1)
+		}
+	}
+
+	// 将数据源写入到具体字段中
+	if err := ac.injectDepend(depend); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (ac *Action) serializeData(data interface{}) (string, error) {
+	if data == nil {
+		return "", nil
+	}
+
+	switch v := data.(type) {
+	case string:
+		return v, nil
+	case []byte:
+		return string(v), nil
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, bool:
+		return fmt.Sprintf("%v", v), nil
+	case map[string]interface{}, []interface{}:
+		jsonBytes, err := json.Marshal(v)
+		if err != nil {
+			return "", fmt.Errorf("序列化数据失败: %w", err)
+		}
+		return strings.Trim(string(jsonBytes), "\""), nil
+	default:
+		jsonBytes, err := json.Marshal(v)
+		if err != nil {
+			return "", fmt.Errorf("序列化数据失败: %w", err)
+		}
+		return string(jsonBytes), nil
+	}
+}
+
+func (ac *Action) fetchDataFromScene(fetch FetchDepend, dataKey string, key string) (interface{}, error) {
+	actionResp := fetch(key)
+	v, err := extractFromResp(actionResp, dataKey)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+func (ac *Action) injectDepend(depend ActionDepend) error {
 	var err error
+	var value interface{}
+
+	// 通用的类型转换逻辑
+	switch depend.Output.Type {
+	case "string":
+		value, err = ConvertToType[string](depend.Output.Value)
+	case "int":
+		value, err = ConvertToType[int](depend.Output.Value)
+	case "float64":
+		value, err = ConvertToType[float64](depend.Output.Value)
+	case "bool":
+		value, err = ConvertToType[bool](depend.Output.Value)
+	case "array":
+		value, err = ConvertToType[[]interface{}](depend.Output.Value)
+	case "json":
+		value, err = ConvertToType[map[string]interface{}](depend.Output.Value)
+	default:
+		// return fmt.Errorf("不支持的类型: %s", depend.Output.Type)
+		logx.Errorf("不支持的类型: %s", depend.Output.Type)
+		value, err = ConvertToType[string](depend.Output.Value)
+	}
+
+	if err != nil {
+		return fmt.Errorf("类型转换错误 [%s]: %w", depend.Refer.Target, err)
+	}
+
+	// 根据不同的Refer.Type注入值
 	switch depend.Refer.Type {
 	case "headers":
 		{
-			if depend.Type == "1" {
-				actionResp := fetch(key)
-				v, err := extractFromResp(actionResp, depend.DataKey)
-				if err != nil {
-					return err
-				}
-				data, ok := v.(string)
-				if !ok {
-					return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
-				}
-				if depend.Refer.Target == "Authorization" {
-					ac.Request.Headers["Authorization"] = fmt.Sprintf("Bearer %s", data)
-				} else {
-					ac.Request.Headers[depend.Refer.Target] = data
-				}
+			if strVal, ok := value.(string); ok {
+				ac.Request.Headers[depend.Refer.Target] = strVal
+				logx.Errorf("headers: %v", ac.Request.Headers)
+			} else {
+				return fmt.Errorf("headers只支持string类型, 但得到了 %T", value)
 			}
 			break
 		}
 	case "payload":
 		{
-			if depend.Type == "1" {
-				runId := strings.Split(key, ".")[0]
-				referKey := fmt.Sprintf("%s.%s", runId, depend.ActionKey)
-				actionResp := fetch(referKey)
-				logx.Error(actionResp)
-				logx.Error(depend.DataKey)
-				v, err := extractFromResp(actionResp, depend.DataKey)
-				if err != nil {
-					return err
-				}
-				data, ok := v.(string)
-				if !ok {
-					return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
-				}
-
-				// 这里需要处理payload字段是多级的情况
-				newPayload, err := setPayloadField(ac.Request.Payload, depend.Refer.Target, data)
-				if err != nil {
-					return err
-				} else {
-					ac.Request.Payload = newPayload
-				}
+			newPayload, err := setPayloadField(ac.Request.Payload, depend.Refer.Target, value)
+			if err != nil {
+				return err
 			}
+			ac.Request.Payload = newPayload
 			break
 		}
 	case "path":
 		{
-			// path大概率是没有多级嵌套参数的情况
-			if depend.Type == "1" {
-				actionResp := fetch(key)
-				v, err := extractFromResp(actionResp, depend.DataKey)
-				if err != nil {
-					return err
-				}
-				data, ok := v.(string)
-				if !ok {
-					return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
-				}
-				ac.Request.Path = strings.ReplaceAll(ac.Request.Path, depend.Refer.Target, data)
+			if strVal, ok := value.(string); ok {
+				ac.Request.Path = strings.ReplaceAll(ac.Request.Path, "{"+depend.Refer.Target+"}", strVal)
+			} else {
+				return fmt.Errorf("path只支持string类型, 但得到了 %T", value)
 			}
 			break
 		}
 	case "query":
 		{
-			// url参数大概率不会有多级嵌套参数的情况
-			if depend.Type == "1" {
-				actionResp := fetch(key)
-				v, err := extractFromResp(actionResp, depend.DataKey)
-				if err != nil {
-					return err
-				}
-				data, ok := v.(string)
-				if !ok {
-					return fmt.Errorf("获取依赖[%s], 断言string类型错误", fmt.Sprintf("%s", key))
-				}
-				ac.Request.Params[depend.Refer.Target] = data
+			if strVal, ok := value.(string); ok {
+				ac.Request.Params[depend.Refer.Target] = strVal
+			} else {
+				return fmt.Errorf("query只支持string类型, 但得到了 %T", value)
 			}
 			break
 		}
+	default:
+		return fmt.Errorf("不支持的Refer.Type: %s", depend.Refer.Type)
 	}
-	// }
-	return err
+
+	return nil
 }
 
 // 断言整个action
@@ -662,7 +493,6 @@ func (ac *Action) expectResp(respFields map[string]interface{}) error {
 			}
 
 			assertOk, err := assert(v, ae.Desire, ae.DataType, ae.Operation)
-			logx.Error(err)
 			if err != nil {
 				return errors.Wrap(err, fmt.Sprintf("断言 [%s] %s [%s] 发生错误", ae.FieldName, ae.Operation, ae.Desire))
 			}
@@ -709,7 +539,6 @@ func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 
 	// 构建HTTP请求（伪代码）
 	url := fmt.Sprintf("https://%s%s?", ac.Request.Domain, ac.Request.Path)
-	logx.Error(url)
 	if len(ac.Request.Params) == 0 {
 		url = strings.TrimRight(url, "?")
 	}
@@ -729,7 +558,6 @@ func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 
 	req, err := http.NewRequest(ac.Request.Method, url, strings.NewReader(payloadStr))
 	if err != nil {
-		logx.Error(err)
 		return nil, err
 	}
 
@@ -743,7 +571,6 @@ func (ac *Action) sendRequest(ctx context.Context) (*http.Response, error) {
 	// 发送请求并处理响应（伪代码）
 	resp, err := client.Do(req)
 	if err != nil {
-		logx.Error(err)
 		for ac.Request.HasRetry < ac.Conf.Retry {
 			ac.Request.HasRetry++
 			time.After(time.Second * 1)
@@ -828,3 +655,37 @@ func (ac *Action) expectAction(respFields map[string]interface{}) error {
 	}
 	return nil
 }
+
+// ConvertToType 将 interface{} 类型的数据转换为指定的类型 T
+func ConvertToType[T any](data interface{}) (T, error) {
+	var result T
+
+	// 获取目标类型
+	targetType := reflect.TypeOf(result)
+
+	// 获取输入数据的值
+	value := reflect.ValueOf(data)
+
+	// 如果输入数据是指针，获取其元素
+	if value.Kind() == reflect.Ptr {
+		value = value.Elem()
+	}
+
+	// 检查是否可以转换
+	if !value.Type().ConvertibleTo(targetType) {
+		return result, fmt.Errorf("无法将类型 %v 转换为 %v", value.Type(), targetType)
+	}
+
+	// 进行转换
+	convertedValue := value.Convert(targetType)
+
+	// 将转换后的值赋给结果
+	result = convertedValue.Interface().(T)
+
+	return result, nil
+}
+
+// 使用示例：
+// stringValue, err := ConvertToType[string](someInterface)
+// intValue, err := ConvertToType[int](someInterface)
+// floatValue, err := ConvertToType[float64](someInterface)

@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"lexa-engine/internal/logic/apirunner"
 	mgoutil "lexa-engine/internal/model/mongo"
@@ -11,7 +10,6 @@ import (
 	"lexa-engine/internal/model/mongo/taskinfo"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
-	"lexa-engine/internal/utils"
 	"strings"
 	"time"
 
@@ -238,11 +236,11 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 	if err != nil {
 		return nil, err
 	}
-	exectorBts, err := json.Marshal(exector.Cases)
-	if err != nil {
-		logx.Error(err)
-	}
-	logx.Error(string(exectorBts))
+	// exectorBts, err := json.Marshal(exector.Cases)
+	// if err != nil {
+	// 	logx.Error(err)
+	// }
+	// logx.Error(string(exectorBts))
 
 	taskRunning, err := l.checkTaskRunning(req.TaskId)
 
@@ -354,8 +352,17 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 						Type:     dep.Refer.Type,
 					},
 					DataSource: []apirunner.DependInject{},
+					DsSpec:     []apirunner.DataSourceSpec{},
 					Mode:       dep.Mode,
 					Extra:      dep.Extra,
+					IsMultiDs:  dep.IsMultiDs,
+				}
+				for _, dss := range dep.DsSpec {
+					ad.DsSpec = append(ad.DsSpec, apirunner.DataSourceSpec{
+						DependId:  dss.DependId,
+						FieldName: dss.FieldName,
+						DataType:  dss.DataType,
+					})
 				}
 				for _, ds := range dep.DataSource {
 					searchCondArr := make([]apirunner.SearchCond, 0)
@@ -366,9 +373,11 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 							CondOperation: sc.CondOperation,
 						})
 					}
-					dependId := utils.EncodeToBase36(utils.GenerateId())
+					// dependId := utils.EncodeToBase36(utils.GenerateId())
+					dependId := ds.DependId
 					ad.DataSource = append(ad.DataSource, apirunner.DependInject{
-						DependId:      fmt.Sprintf("%s_%s", "DEPEND", strings.ToUpper(dependId)),
+						// DependId:      fmt.Sprintf("%s_%s", "DEPEND", strings.ToUpper(dependId)),
+						DependId:      dependId,
 						Type:          ds.Type,
 						DataKey:       ds.DataKey,
 						ActionKey:     ds.ActionKey,

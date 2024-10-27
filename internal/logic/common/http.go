@@ -122,7 +122,6 @@ func (hc *HttpClient) postUrlEncoded(reqSpec *Request) (resp *http.Response, err
 		payloadString += fmt.Sprintf("%s=%s&", field.FormName, field.FormValue)
 	}
 	payloadString = strings.TrimRight(payloadString, "&")
-	logx.Error(payloadString)
 	payload := strings.NewReader(payloadString)
 	req, err := http.NewRequest("POST", reqSpec.ReqUrl, payload)
 	if err != nil {

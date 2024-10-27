@@ -15,8 +15,8 @@ func ReadArrayAny(data map[string]any, key string) (arr []any) {
 	arr, ok = mapValue.([]any)
 	if !ok {
 		logx.Error("map-value 不是Array类型")
-		mapValueB, _ := json.Marshal(mapValue)
-		logx.Error(string(mapValueB))
+		// mapValueB, _ := json.Marshal(mapValue)
+		// logx.Error(string(mapValueB))
 		return
 	}
 	return

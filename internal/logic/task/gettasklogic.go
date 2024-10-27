@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	mgoutil "lexa-engine/internal/model/mongo"
 	"lexa-engine/internal/model/mongo/taskinfo"
 	"lexa-engine/internal/svc"
@@ -38,13 +39,26 @@ func (l *GetTaskLogic) GetTask(req *types.GetTaskDto) (resp *types.GetTaskResp, 
 		resp.Message = err.Error()
 		return
 	}
+	taskSpec := make([]map[string]interface{}, len(taskInfo.Scenes))
+	bts, err := json.Marshal(taskInfo.Scenes)
+	if err != nil {
+		resp.Code = 1
+		resp.Message = err.Error()
+		return
+	}
+	if err = json.Unmarshal(bts, &taskSpec); err != nil {
+		resp.Code = 1
+		resp.Message = err.Error()
+		return
+	}
+
 	resp.Data = types.TaskInfo{
 		TaskId:      taskInfo.TaskID,
 		TaskName:    taskInfo.TaskName,
 		Author:      taskInfo.Author,
 		TaskType:    "autoapi",
 		Description: taskInfo.Description,
-		TaskSpec:    taskInfo.Scenes,
+		TaskSpec:    taskSpec,
 		CreateTime:  taskInfo.CreateAt.Format("2006-01-02 15:04:05"),
 		UpdateTime:  taskInfo.UpdateAt.Format("2006-01-02 15:04:05"),
 	}

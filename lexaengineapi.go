@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
 	// "os"
 	"lexa-engine/internal/config"
 	"lexa-engine/internal/handler"
@@ -22,7 +23,6 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/rest"
 	"gopkg.in/yaml.v3"
-
 )
 
 var configFile = flag.String("f", "etc/lexa-engine-api.yaml", "the config file")
@@ -59,7 +59,6 @@ func customCORS() rest.Middleware {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			logx.Error(r.Header)
 			if origin != "" {
 				logx.Infof("origin: %s", origin)
 				w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -149,7 +148,6 @@ func tcGenerate(apiIDs []int, filename string) error {
 			}
 		}
 
-		logx.Error(apid.ApiAuthType)
 		if apid.ApiAuthType == "2" {
 			refer := task.Refer{
 				Type:     "header",

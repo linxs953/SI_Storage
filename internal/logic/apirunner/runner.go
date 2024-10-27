@@ -31,17 +31,17 @@ func (runner *ApiExecutor) parametrization(rdsClient *redis.Redis) error {
 
 	for _, scene := range runner.Cases {
 		for _, action := range scene.Actions {
-			for _, depend := range action.Request.Dependency {
-				if err := runner.filledHeader(depend, &action, rdsClient); err != nil {
+			for dIdx, depend := range action.Request.Dependency {
+				if err := runner.filledHeader(depend, dIdx, &action, rdsClient); err != nil {
 					return errors.Wrap(err, "headers参数化失败")
 				}
-				if err := runner.filledPayload(depend, &action, rdsClient); err != nil {
+				if err := runner.filledPayload(depend, dIdx, &action, rdsClient); err != nil {
 					return errors.Wrap(err, "payload参数化失败")
 				}
-				if err := runner.filledPath(depend, &action, rdsClient); err != nil {
+				if err := runner.filledPath(depend, dIdx, &action, rdsClient); err != nil {
 					return errors.Wrap(err, "path参数化失败")
 				}
-				if err := runner.filledQuery(depend, &action, rdsClient); err != nil {
+				if err := runner.filledQuery(depend, dIdx, &action, rdsClient); err != nil {
 					return errors.Wrap(err, "query参数化失败")
 				}
 			}
@@ -50,44 +50,43 @@ func (runner *ApiExecutor) parametrization(rdsClient *redis.Redis) error {
 	return err
 }
 
-func (runner *ApiExecutor) filledHeader(depend ActionDepend, action *Action, rdsClient *redis.Redis) error {
+func (runner *ApiExecutor) filledHeader(depend ActionDepend, dependIdx int, action *Action, rdsClient *redis.Redis) error {
 	var err error
 	if depend.Refer.Type == "headers" {
 		if action.Request.Headers == nil {
 			action.Request.Headers = make(map[string]string)
 		}
-		if err = runner.handleActionRefer(depend, action, rdsClient, "headers"); err != nil {
+		if err = runner.handleActionRefer(depend, dependIdx, action, rdsClient, "headers"); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (runner *ApiExecutor) filledPayload(depend ActionDepend, action *Action, rdsClient *redis.Redis) error {
+func (runner *ApiExecutor) filledPayload(depend ActionDepend, dependIdx int, action *Action, rdsClient *redis.Redis) error {
 	var err error
 	if depend.Refer.Type == "payload" {
-		if err = runner.handleActionRefer(depend, action, rdsClient, "payload"); err != nil {
+		if err = runner.handleActionRefer(depend, dependIdx, action, rdsClient, "payload"); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (runner *ApiExecutor) filledPath(depend ActionDepend, action *Action, rdsClient *redis.Redis) error {
+func (runner *ApiExecutor) filledPath(depend ActionDepend, dependIdx int, action *Action, rdsClient *redis.Redis) error {
 	var err error
 	if depend.Refer.Type == "path" {
-		logx.Error(depend)
-		if err = runner.handleActionRefer(depend, action, rdsClient, "path"); err != nil {
+		if err = runner.handleActionRefer(depend, dependIdx, action, rdsClient, "path"); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (runner *ApiExecutor) filledQuery(depend ActionDepend, action *Action, rdsClient *redis.Redis) error {
+func (runner *ApiExecutor) filledQuery(depend ActionDepend, dependIdx int, action *Action, rdsClient *redis.Redis) error {
 	var err error
 	if depend.Refer.Type == "params" {
-		if err = runner.handleActionRefer(depend, action, rdsClient, "query"); err != nil {
+		if err = runner.handleActionRefer(depend, dependIdx, action, rdsClient, "query"); err != nil {
 			return err
 		}
 	}
@@ -95,29 +94,11 @@ func (runner *ApiExecutor) filledQuery(depend ActionDepend, action *Action, rdsC
 }
 
 // 处理数据源的获取
-func (runner *ApiExecutor) handleActionRefer(depend ActionDepend, action *Action, rdsClient *redis.Redis, referType string) (err error) {
-	setPayloadData := func(payload map[string]interface{}, key string, value interface{}) (map[string]interface{}, error) {
-		parts := strings.Split(key, ".")
-		data := payload
-		for idx, part := range parts {
-			if idx == len(parts)-1 {
-				data[part] = value
-			} else {
-				if next, ok := data[part]; ok {
-					if nextMap, ok := next.(map[string]interface{}); ok {
-						data = nextMap
-					} else {
-						return nil, fmt.Errorf("key '%s' already exists but is not a map", key)
-					}
-				} else {
-					return nil, fmt.Errorf("key '%s' not exist", key)
-
-				}
-			}
-		}
-		newPayload := payload
-		return newPayload, nil
-	}
+func (runner *ApiExecutor) handleActionRefer(depend ActionDepend, dependIdx int, action *Action, rdsClient *redis.Redis, referType string) (err error) {
+	// 多数据处理
+	//    - 遍历DataSource,拿到里面的每个数据源定义，根据具体的定义去获取对应的数据
+	//    - 拿到DsSpec，根据DsSpec的定义，填充extra模板的信息，最后写入到Output对象中
+	//    - 最后拿到ActionDepend的Output对象，把Output.Value读取出来，按照Ouput.Type进行转换，赋值给字段
 
 	actionIdx := 0
 	sceneIdx := 0
@@ -130,97 +111,190 @@ func (runner *ApiExecutor) handleActionRefer(depend ActionDepend, action *Action
 			}
 		}
 	}
+	if depend.IsMultiDs && depend.Extra != "" {
 
-	if depend.Type == "1" {
-		// 数据源=场景，验证依赖引用关系是否合法
-		err = runner.handleSceneRefer(depend, action)
+		// 构建DataSource映射
+		dsMap := make(map[string]DependInject)
+		for _, ds := range depend.DataSource {
+			dsMap[ds.DependId] = ds
+		}
+
+		var multiDsVal string = depend.Extra
+
+		// 多数据源处理
+		for _, dsmap := range depend.DsSpec {
+			_ = dsmap
+			if dsmap.DependId == "" {
+				continue
+			}
+			if _, ok := dsMap[dsmap.DependId]; !ok {
+				continue
+			}
+
+			// dependId存在
+			ds := dsMap[dsmap.DependId]
+			val := runner.fetchDataSource(ds, action, rdsClient)
+			if val == nil {
+				continue
+			}
+
+			// 把interface{}转换成string
+			valStr, err := runner.serializeData(val)
+			if err != nil {
+				return err
+			}
+
+			// 把获取到数据源数据填充到多数据源模板中
+			multiDsVal = strings.Replace(multiDsVal, fmt.Sprintf("$$%s", dsmap.FieldName), valStr, -1)
+
+		}
+
+		// 模板数据填充完成后，更新到depend.Output.Value中
+		runner.Cases[sceneIdx].Actions[actionIdx].Request.Dependency[dependIdx].Output.Value = multiDsVal
+		runner.injectDepend(action, referType, depend.Refer.Target, sceneIdx, actionIdx, multiDsVal)
+	} else {
+		// 单数据源处理
+		if len(depend.DataSource) == 0 {
+			return nil
+		}
+		val := runner.fetchDataSource(depend.DataSource[0], action, rdsClient)
+		if val == nil {
+			return nil
+		}
+		valStr, err := runner.serializeData(val)
 		if err != nil {
 			return err
 		}
+		depend.Output.Value = valStr
+		runner.injectDepend(action, referType, depend.Refer.Target, sceneIdx, actionIdx, valStr)
+	}
+	return nil
+}
+
+// 把获取的依赖注入到Request的字段中
+func (runner *ApiExecutor) injectDepend(action *Action, dsType string, target string, sceneIdx, actionIdx int, val interface{}) {
+	switch dsType {
+	case "headers":
+		{
+			runner.Cases[sceneIdx].Actions[actionIdx].Request.Headers[target] = val.(string)
+			break
+		}
+	case "payload":
+		{
+			newPayload, err := runner.setPayloadData(action.Request.Payload, target, val)
+			if err != nil {
+				return
+			}
+			runner.Cases[sceneIdx].Actions[actionIdx].Request.Payload = newPayload
+			break
+		}
+	case "path":
+		{
+			runner.Cases[sceneIdx].Actions[actionIdx].Request.Path = strings.Replace(action.Request.Path, target, val.(string), -1)
+			break
+		}
+	case "query":
+		{
+			runner.Cases[sceneIdx].Actions[actionIdx].Request.Params[target] = val.(string)
+			break
+		}
+	}
+}
+
+// serializeData 将 interface{} 类型的数据序列化为字符串
+func (runner *ApiExecutor) serializeData(data interface{}) (string, error) {
+	if data == nil {
+		return "", nil
 	}
 
-	if depend.Type == "2" {
-		// 数据源=基础数据(Redis)，获取redis数据进行填充
-		val, err := runner.handleBasicRefer(rdsClient, depend)
+	switch v := data.(type) {
+	case string:
+		return v, nil
+	case []byte:
+		return string(v), nil
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, bool:
+		return fmt.Sprintf("%v", v), nil
+	case map[string]interface{}, []interface{}:
+		jsonBytes, err := json.Marshal(v)
 		if err != nil {
-			return err
+			return "", fmt.Errorf("序列化数据失败: %w", err)
 		}
-
-		switch referType {
-		case "headers":
-			{
-				action.Request.Headers[depend.Refer.Target] = val
-				runner.Cases[sceneIdx].Actions[actionIdx].Request.Headers[depend.Refer.Target] = val
-				break
-			}
-		case "payload":
-			{
-				newPayload, err := setPayloadData(action.Request.Payload, depend.Refer.Target, val)
-				if err != nil {
-					return err
-				}
-				action.Request.Payload = newPayload
-				runner.Cases[sceneIdx].Actions[actionIdx].Request.Payload = newPayload
-				break
-			}
-		case "path":
-			{
-				// logx.Errorf("[runner] 执行action path的参数化, actionPath=%s, 替换值=%s, 最新值=%s", action.Request.Path, depend.Refer.Target, val)
-				action.Request.Path = strings.Replace(action.Request.Path, depend.Refer.Target, val, -1)
-				runner.Cases[sceneIdx].Actions[actionIdx].Request.Path = action.Request.Path
-				// logx.Error(runner.Cases[sceneIdx].Actions[actionIdx].Request.Path)
-				break
-			}
-		case "query":
-			{
-				// action.Request.Params[depend.Refer.Target] = val
-				runner.Cases[sceneIdx].Actions[actionIdx].Request.Params[depend.Refer.Target] = val
-				break
-			}
-		}
-	}
-
-	if depend.Type == "3" {
-		// 数据源=自定义, 直接覆盖原有值
-		switch referType {
-		case "headers":
-			{
-				action.Request.Headers[depend.Refer.Target] = depend.DataKey
-				break
-			}
-		case "payload":
-			{
-				newPayload, err := setPayloadData(action.Request.Payload, depend.Refer.Target, depend.DataKey)
-				if err != nil {
-					return err
-				}
-				action.Request.Payload = newPayload
-				break
-			}
-		case "path":
-			{
-				action.Request.Path = strings.Replace(action.Request.Path, depend.Refer.Target, depend.DataKey, -1)
-				break
-			}
-		case "query":
-			{
-				action.Request.Params[depend.Refer.Target] = depend.DataKey
-				break
-			}
-		}
-	}
-
-	if depend.Type == "4" {
-		// 数据源=事件
-		_, err = runner.handleEventRefer(depend)
+		return strings.Trim(string(jsonBytes), "\""), nil
+	default:
+		jsonBytes, err := json.Marshal(v)
 		if err != nil {
-			return err
+			return "", fmt.Errorf("序列化数据失败: %w", err)
+		}
+		return string(jsonBytes), nil
+	}
+}
+
+// 根据DependInfo的定义，获取具体的数据
+func (runner *ApiExecutor) fetchDataSource(depend DependInject, action *Action, rdsClient *redis.Redis) interface{} {
+	switch depend.Type {
+	case "1":
+		{
+			// 数据源=场景，验证依赖引用关系是否合法
+			err := runner.handleSceneRefer(depend, action)
+			if err != nil {
+				logx.Errorf("场景依赖引用关系不合法: %s", err)
+				return nil
+			}
+			break
+		}
+	case "2":
+		{
+			// 数据源=基础数据(Redis)，获取redis数据进行填充
+			val, err := runner.handleBasicRefer(rdsClient, depend)
+			if err != nil {
+				logx.Errorf("获取基础数据失败: %s", err)
+				return nil
+			}
+			return val
+		}
+	case "3":
+		{
+			// 数据源=自定义, 直接覆盖原有值
+			return depend.DataKey
+		}
+	case "4":
+		{
+			// 数据源=事件
+			_, err := runner.handleEventRefer(ActionDepend{})
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func (runner *ApiExecutor) handleSceneRefer(depend ActionDepend, action *Action) (err error) {
+// 生成一个新的Request Payload
+func (runner *ApiExecutor) setPayloadData(payload map[string]interface{}, key string, value interface{}) (map[string]interface{}, error) {
+	parts := strings.Split(key, ".")
+	data := payload
+	for idx, part := range parts {
+		if idx == len(parts)-1 {
+			data[part] = value
+		} else {
+			if next, ok := data[part]; ok {
+				if nextMap, ok := next.(map[string]interface{}); ok {
+					data = nextMap
+				} else {
+					return nil, fmt.Errorf("key '%s' already exists but is not a map", key)
+				}
+			} else {
+				return nil, fmt.Errorf("key '%s' not exist", key)
+
+			}
+		}
+	}
+	newPayload := payload
+	return newPayload, nil
+}
+
+// 处理场景依赖： 用于验证引用关系是否合法
+func (runner *ApiExecutor) handleSceneRefer(depend DependInject, action *Action) (err error) {
 	// 在任务创建或者编辑之后，场景依赖关系已经生成，这个方法主要是验证引用关系是否正常
 	// 1. 场景引用表达式： [sceneInstanceId].[actionInstanceId]
 	// 2. dataKey照旧，不做处理
@@ -256,8 +330,6 @@ func (runner *ApiExecutor) handleSceneRefer(depend ActionDepend, action *Action)
 
 	if runner.ActionSceneMap[relateAction] == runner.ActionSceneMap[action.ActionID] {
 		// 引用的action和当前action同属同个场景
-		logx.Error(action.ActionID)
-		logx.Error(relateAction)
 		preAction := runner.PreActionsMap[action.ActionID]
 		for pidx, pre := range preAction {
 			if pre == relateAction {
@@ -269,20 +341,20 @@ func (runner *ApiExecutor) handleSceneRefer(depend ActionDepend, action *Action)
 		}
 	}
 
-	// 引用关系验证成功
 	return
 }
 
-func (runner *ApiExecutor) handleBasicRefer(rdsClient *redis.Redis, depend ActionDepend) (value string, err error) {
+// 处理基础数据依赖： 用于获取redis数据进行填充
+func (runner *ApiExecutor) handleBasicRefer(rdsClient *redis.Redis, depend DependInject) (value string, err error) {
 	// 数据源不是基础数据，不处理
 	if depend.Type != "2" {
 		return
 	}
-	logx.Error(depend)
 	value, err = runner.fetchDataWithRedis(rdsClient, "list", depend.ActionKey, depend.DataKey)
 	return
 }
 
+// 获取redis数据
 func (runner *ApiExecutor) fetchDataWithRedis(rdsClient *redis.Redis, resultType, key string, dataKey string) (string, error) {
 	/*
 		仅支持获取list和string类型的基础数据
@@ -292,6 +364,7 @@ func (runner *ApiExecutor) fetchDataWithRedis(rdsClient *redis.Redis, resultType
 		   - 把1和2获取的数据解析成map
 		   - 根据dataKey引用字段，从map中获取对应的值
 	*/
+	_ = resultType
 	if key == "" {
 		// 键名为空，直接返回
 		return "", errors.New("redis key为空")
@@ -350,6 +423,7 @@ func (runner *ApiExecutor) fetchDataWithRedis(rdsClient *redis.Redis, resultType
 	return value.(string), nil
 }
 
+// 处理事件依赖： 用于获取事件数据进行填充
 func (runner *ApiExecutor) handleEventRefer(depend ActionDepend) (value string, err error) {
 	if depend.Type != "4" {
 		return
@@ -383,32 +457,11 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, taskId string, mgoC
 	finishChan := make(chan RunFlowLog)
 	go func(taskId string, mod task_run_log.TaskRunLogModel) {
 		for log := range runner.LogChan {
-			// if log.LogType == "TASK" {
-			// 	if log.TriggerNode != "TASK_FINISH" {
-			// 		continue
-			// 	}
-			// 	taskLog, err := mod.FindLogRecord(ctx, log.RunId, "", "", "task")
-			// 	if err != nil {
-			// 		logx.Error(err)
-			// 		return
-			// 	}
-			// 	// 查找所有的scene记录，看看是否有error，有的话更新状态=2，否则状态=1
-			// 	allRunScenes, err := mod.FindAllSceneRecord(ctx, log.RunId, log.SceneID)
-			// 	if err != nil {
-			// 		logx.Error(err)
-			// 		return
-			// 	}
-			// 	syncTaskRecord(taskLog, allRunScenes, log, mod)
-			// }
 			if log.LogType == "SCENE" {
 				sceneLog, err := mod.FindLogRecord(ctx, log.RunId, log.EventId, "", "scene")
 				if err != nil {
 					logx.Error(err)
 				}
-				// taskLog, err := mod.FindLogRecord(ctx, log.RunId, "", "", "task")
-				// if err != nil {
-				// 	logx.Error(err)
-				// }
 				if sceneLog != nil && err == nil {
 					updateSceneRecord(sceneLog, log, mod)
 					continue
@@ -416,7 +469,6 @@ func (runner *ApiExecutor) ScheduleTask(ctx context.Context, taskId string, mgoC
 				createSceneRecord(taskId, log, mod)
 			}
 			if log.LogType == "ACTION" {
-				logx.Error(log.SceneID)
 				taskLog, err := mod.FindLogRecord(ctx, log.RunId, log.SceneID, log.EventId, "action")
 				if err != nil {
 					logx.Error(err)

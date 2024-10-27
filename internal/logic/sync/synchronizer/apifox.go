@@ -18,7 +18,6 @@ import (
 	"lexa-engine/internal/logic/sync/synchronizer/utils"
 	"lexa-engine/internal/model/mongo/apidetail"
 	"lexa-engine/internal/svc"
-
 )
 
 var hc common.HttpClient
@@ -96,11 +95,6 @@ func (afSync *ApiFoxSynchronizer) Store(ctx *svc.ServiceContext, recordId primit
 			logx.Error(err)
 			return err
 		}
-
-		// if err := ctx.KqPusherClient.Push(string(eventMsg)); err != nil {
-		// 	logx.Error(err)
-		// 	return err
-		// }
 	}
 
 	return
@@ -304,8 +298,6 @@ func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[
 	}
 	if _, ok := foldersLevel[strconv.Itoa(folderId)]; !ok {
 		err = errors.New("读取folder level失败")
-		logx.Error(foldersLevel)
-		logx.Error(folderId)
 		return
 	}
 	apiDetail.FolderName = foldersLevel[strconv.Itoa(folderId)]
@@ -343,7 +335,6 @@ func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[
 	}
 	authType := utils.ReadMapValueString(auth, "type")
 	if authType == "" {
-		// logx.Error(fmt.Sprintf("获取 api=[%v] data.auth 失败 ", apiId))
 		apiDetail.ApiAuthType = "0"
 	}
 	if authType == "noauth" {
@@ -355,8 +346,7 @@ func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[
 
 	apiPayload, err := buildRequestBody(bodyMap)
 	if err != nil {
-		logx.Error("构建 api payload 失败")
-		logx.Error(err)
+		logx.Error("构建 api payload 失败", err)
 		return
 	}
 	if apiPayload == nil {
@@ -389,12 +379,10 @@ func (afSync *ApiFoxSynchronizer) extractApiInfo(apiId string, foldersLevel map[
 	// 构建 query
 	apiQueries, err := buildRequestQuery(bodyMap)
 	if err != nil {
-		logx.Error("构建 api query 失败")
-		logx.Error(err)
+		logx.Error("构建 api query 失败", err)
 		return
 	}
 	apiDetail.ApiParameters = apiQueries
-	// logx.Errorf("api query %v", apiDetail.ApiParameters[0].QueryName)
 
 	apiHeaders := buildHeaders()
 	if apiHeaders != nil {

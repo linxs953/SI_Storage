@@ -40,7 +40,6 @@ func (ctm *customTaskRecordModel) Insert(ctx context.Context, data *TaskRecord) 
 func (ctm *customTaskRecordModel) IsRecordExist(ctx context.Context, sceneId string) bool {
 	var record TaskRecord
 	err := ctm.conn.FindOne(ctx, &record, bson.M{"sceneId": sceneId, "state": 0})
-	logx.Error(err)
 	if err != nil && err == mongo.ErrNoDocuments {
 		return false
 	}
