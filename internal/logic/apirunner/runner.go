@@ -560,7 +560,9 @@ func updateActionRecord(record *task_run_log.TaskRunLog, log RunFlowLog, mod tas
 	if log.RootErr != nil {
 		record.ActionDetail.State = 2
 	} else {
-		record.ActionDetail.State = 1
+		if log.ActionIsEof {
+			record.ActionDetail.State = 1
+		}
 	}
 	record.ActionDetail.Response = log.Response
 	record.ActionDetail.Duration = int(time.Since(record.CreateAt).Milliseconds())
