@@ -7,9 +7,7 @@ import (
 	"lexa-engine/internal/types"
 	"net/http"
 
-	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/rest/httpx"
-
 )
 
 func GetTaskHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -17,7 +15,6 @@ func GetTaskHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		var req types.GetTaskDto
 
 		req.TaskId = r.URL.Query().Get("taskId")
-		logx.Error(req.TaskId)
 		if req.TaskId == "" {
 			httpx.ErrorCtx(r.Context(), w, errors.New("taskId为空"))
 			return

@@ -1,0 +1,60 @@
+description: "创建订单-完成订单-触发订单结算-货款结算-用户佣金结算"
+type: "scene"
+author: "linxs"
+sceneId: "scene-1"
+total: 10
+timeout: 10
+actions:
+- actionName: 账号密码登录
+  apiID: 100300424
+  actionID: "action-login"
+  retry: 3
+  timeout: 5
+  dependency: []
+  output:
+    key: "scene-1.action-login"
+  expect:
+    api:
+      - type: "field"
+        fieldName: "code"
+        operation: eq
+        dataType: "int"
+        desire: 0
+      - type: "field"
+        fieldName: "msg"
+        operation: eq
+        dataType: "string"
+        desire: "操作成功"
+
+- actionName: 创建订单
+  apiID: 110977776
+  actionID: "action-createorder"
+  retry: 3
+  timeout: 5
+  dependency:
+  - type: "1"
+    actionKey: "scene-1.action-login"
+    dataKey: "data.token"
+    refer:
+    - type: "header"
+      target:  "header.Authorization"
+      dataType: "string"
+  output:
+    key: "scene-1.action-createorder"
+  expect:
+    api:
+      - type: "field"
+        fieldName: "data.order_number"
+        operation: neq
+        dataType: "string"
+        desire: ""
+      - type: "field"
+        fieldName: "msg"
+        operation: eq
+        dataType: "string"
+        desire: "操作成功"
+      - type: "field"
+        fieldName: "code"
+        operation: eq
+        dataType: "int"
+        desire: 0

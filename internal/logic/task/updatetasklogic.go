@@ -50,6 +50,8 @@ func (l *UpdateTaskLogic) UpdateTask(req *types.UpdateTaskDto) (resp *types.Upda
 
 	// todo: 重新设计入参dto， 更新逻辑再更新
 	taskInfo.TaskName = req.TaskName
+	taskInfo.Description = req.Description
+
 	taskInfo.UpdateAt = time.Now()
 
 	// 辅助函数用于转换 Actions

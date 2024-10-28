@@ -1,7 +1,8 @@
 .idea
-etc/
-apispec/
-lexa-engine.api
+# etc/
+# apispec/
+# lexa-engine.api
 .DS_Store
-*.yaml
+# *.yaml
 *.txt
+.vscode

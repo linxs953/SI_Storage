@@ -42,7 +42,6 @@ func (cm *customApidetailModel) FindByApiId(ctx context.Context, apiId int) (*Ap
 func (cm *customApidetailModel) FindApiList(ctx context.Context, page int64, pageSize int64) ([]*Apidetail, error) {
 	var err error
 	skip := (page - 1) * pageSize
-	logx.Error(page, pageSize)
 	// 分页查询mongodb 表数据
 	var apidetails []*Apidetail
 	err = cm.conn.Find(ctx, &apidetails, bson.D{}, options.Find().SetSkip(skip).SetLimit(pageSize))

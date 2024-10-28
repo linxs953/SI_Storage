@@ -58,7 +58,7 @@ func (l *GetRunDetailLogic) GetRunDetail(req *types.GetRunDetailDto) (resp *type
 		return
 	}
 
-	taskRunRecords, err := getAllTasks(l.ctx, taskLogModel, req.TaskId)
+	taskRunRecords, err := getAllTasks(l.ctx, taskLogModel, req.TaskId, -1, -1)
 	if err != nil {
 		resp.Code = 1
 		resp.Message = err.Error()

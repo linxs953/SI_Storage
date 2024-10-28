@@ -22,10 +22,66 @@ type Action struct {
 
 // Dependency represents the dependencies of an action.
 type Dependency struct {
-	Type      string `json:"type"`
-	ActionKey string `json:"actionKey"`
-	DataKey   string `json:"dataKey"`
-	Refer     Refer  `json:"refer"`
+	Type       string         `json:"type"`
+	ActionKey  string         `json:"actionKey"`
+	DataKey    string         `json:"dataKey"`
+	Refer      Refer          `json:"refer"`
+	DataSource []DependInject `json:"dataSource"`
+
+	IsMultiDs bool `json:"isMultiDs"`
+
+	// 1 表示最终的数据类型是 string, 包括常规的string 和序列化对象后的 string
+	Mode string `json:"mode"`
+
+	// 存储最终赋值给字段的模版, 执行的时候把数据源注入, 拼接成真实的数据
+	Extra string `json:"extra"`
+
+	DsSpec []DataSourceSpec `json:"dsSpec"`
+
+	// 最终的数据值
+	Output OutputSpec `json:"output"`
+}
+
+type DesireSetting struct {
+	DataSource  []DependInject   `json:"dataSource"`
+	Extra       string           `json:"extra"`
+	DsSpec      []DataSourceSpec `json:"dsSpec"`
+	Output      OutputSpec       `json:"output"`
+	IsMultiDs   bool             `json:"isMultiDs"`
+	Mode        string           `json:"mode"`
+	ReferTarget string           `json:"referTarget"`
+	ReferType   string           `json:"referType"`
+}
+
+type OutputSpec struct {
+	Value interface{} `json:"value"`
+	Type  string      `json:"type"`
+}
+
+type DataSourceSpec struct {
+	FieldName string `json:"fieldName"`
+	DependId  string `json:"dependId"`
+
+	// 写入到 extra 里面的字段的数据类型
+	DataType string `json:"dataType"`
+}
+
+type DependInject struct {
+	Name          string       `json:"name"`
+	DependId      string       `json:"dependId"`
+	Type          string       `json:"type"`
+	DataKey       string       `json:"dataKey"`
+	ActionKey     string       `json:"actionKey"`
+	SearchCondArr []SearchCond `json:"searchCondArr"`
+}
+
+type SearchCond struct {
+	// 条件字段
+	CondFiled string `json:"condFiled"`
+	// 条件值
+	CondValue string `json:"condValue"`
+	// 条件类型, eq / neq / gt / gte / lt / lte / like / in / nin / nin
+	CondOperation string `json:"condOperation"`
 }
 
 // Refer represents references within a dependency.
@@ -72,10 +128,11 @@ type Api struct {
 
 // Data holds the detailed data for an API expectation.
 type Data struct {
-	Name      string      `json:"name"`
-	Operation string      `json:"operation"`
-	Type      string      `json:"type"`
-	Desire    interface{} `json:"desire"`
+	Name          string        `json:"name"`
+	Operation     string        `json:"operation"`
+	Type          string        `json:"type"`
+	Desire        interface{}   `json:"desire"`
+	DesireSetting DesireSetting `json:"desireSetting"`
 }
 
 // Scene represents a scenario including actions, results, and webhook details.
@@ -116,14 +173,14 @@ type TaskEvent struct {
 }
 
 type EventMsg struct {
-	RequestID string
-	TaskID    string
-	Total     int
-	Execute   int
-	StartAt   time.Time
-	FinishAt  time.Time
-	Duration  time.Duration
-	State     int
+	RequestID string        `json:"requestId"`
+	TaskID    string        `json:"taskId"`
+	Total     int           `json:"total"`
+	Execute   int           `json:"execute"`
+	StartAt   time.Time     `json:"startAt"`
+	FinishAt  time.Time     `json:"finishAt"`
+	Duration  time.Duration `json:"duration"`
+	State     int           `json:"state"`
 }
 
 type DependencyReference struct {

@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"lexa-engine/internal/logic/apirunner"
 	mgoutil "lexa-engine/internal/model/mongo"
@@ -237,11 +236,11 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 	if err != nil {
 		return nil, err
 	}
-	exectorBts, err := json.Marshal(exector.Cases)
-	if err != nil {
-		logx.Error(err)
-	}
-	logx.Error(string(exectorBts))
+	// exectorBts, err := json.Marshal(exector.Cases)
+	// if err != nil {
+	// 	logx.Error(err)
+	// }
+	// logx.Error(string(exectorBts))
 
 	taskRunning, err := l.checkTaskRunning(req.TaskId)
 
@@ -277,6 +276,7 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 		return nil, err
 	}
 
+	exector.RDSClient = l.svcCtx.RedisClient
 	exector.Run(context.Background(), req.TaskId, l.svcCtx.RedisClient, l.svcCtx.Config.Database.Mongo)
 
 	return &types.RunTaskResp{
@@ -352,6 +352,38 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 						Target:   dep.Refer.Target,
 						Type:     dep.Refer.Type,
 					},
+					DataSource: []apirunner.DependInject{},
+					DsSpec:     []apirunner.DataSourceSpec{},
+					Mode:       dep.Mode,
+					Extra:      dep.Extra,
+					IsMultiDs:  dep.IsMultiDs,
+				}
+				for _, dss := range dep.DsSpec {
+					ad.DsSpec = append(ad.DsSpec, apirunner.DataSourceSpec{
+						DependId:  dss.DependId,
+						FieldName: dss.FieldName,
+						DataType:  dss.DataType,
+					})
+				}
+				for _, ds := range dep.DataSource {
+					searchCondArr := make([]apirunner.SearchCond, 0)
+					for _, sc := range ds.SearchCondArr {
+						searchCondArr = append(searchCondArr, apirunner.SearchCond{
+							CondFiled:     sc.CondFiled,
+							CondValue:     sc.CondValue,
+							CondOperation: sc.CondOperation,
+						})
+					}
+					// dependId := utils.EncodeToBase36(utils.GenerateId())
+					dependId := ds.DependId
+					ad.DataSource = append(ad.DataSource, apirunner.DependInject{
+						// DependId:      fmt.Sprintf("%s_%s", "DEPEND", strings.ToUpper(dependId)),
+						DependId:      dependId,
+						Type:          ds.Type,
+						DataKey:       ds.DataKey,
+						ActionKey:     ds.ActionKey,
+						SearchCondArr: searchCondArr,
+					})
 				}
 				actionDepends = append(actionDepends, ad)
 			}
@@ -424,9 +456,49 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 			// 构建Action Expect
 			apiExpects := make([]apirunner.ApiExpect, 0)
 			for _, expect := range action.Expect.Api {
+
+				// DesireSetting.DataSource转换
+				dependInject := make([]apirunner.DependInject, 0)
+				for _, di := range expect.Data.DesireSetting.DataSource {
+
+					// DataSource.SearchCondArr转换
+					searchCondArr := make([]apirunner.SearchCond, 0)
+					for _, sc := range di.SearchCondArr {
+						searchCondArr = append(searchCondArr, apirunner.SearchCond{
+							CondFiled:     sc.CondFiled,
+							CondValue:     sc.CondValue,
+							CondOperation: sc.CondOperation,
+						})
+					}
+					dependInject = append(dependInject, apirunner.DependInject{
+						DependId:      di.DependId,
+						Type:          di.Type,
+						DataKey:       di.DataKey,
+						ActionKey:     di.ActionKey,
+						SearchCondArr: searchCondArr,
+					})
+				}
+
+				// DesireSetting.DsSpec转换
+				dsSpec := make([]apirunner.DataSourceSpec, 0)
+				for _, dss := range expect.Data.DesireSetting.DsSpec {
+					dsSpec = append(dsSpec, apirunner.DataSourceSpec(dss))
+				}
+
+				output := apirunner.OutputSpec(expect.Data.DesireSetting.Output)
+
 				apiExpects = append(apiExpects, apirunner.ApiExpect{
-					DataType:  expect.Data.Type,
-					Desire:    expect.Data.Desire,
+					DataType: expect.Data.Type,
+					Desire: apirunner.DesireSetting{
+						DataSource:  dependInject,
+						Extra:       expect.Data.DesireSetting.Extra,
+						DsSpec:      dsSpec,
+						Output:      output,
+						IsMultiDs:   expect.Data.DesireSetting.IsMultiDs,
+						Mode:        expect.Data.DesireSetting.Mode,
+						ReferTarget: expect.Data.DesireSetting.ReferTarget,
+						ReferType:   expect.Data.DesireSetting.ReferType,
+					},
 					FieldName: expect.Data.Name,
 					Operation: expect.Data.Operation,
 					Type:      expect.Type,
@@ -488,7 +560,7 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 func (l *RunTaskLogic) checkTaskRunning(taskId string) (*task_run_log.TaskRunLog, error) {
 	murl := mgoutil.GetMongoUrl(l.svcCtx.Config.Database.Mongo)
 	taskMod := task_run_log.NewTaskRunLogModel(murl, l.svcCtx.Config.Database.Mongo.UseDb, "TaskRunLog")
-	taskAllRun, err := taskMod.FindAllTaskRecords(l.ctx, taskId)
+	taskAllRun, err := taskMod.FindAllTaskRecords(l.ctx, taskId, -1, -1)
 	if err != nil {
 		return nil, err
 	}

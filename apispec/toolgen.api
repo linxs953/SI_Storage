@@ -1,0 +1,18 @@
+syntax = "v1"
+
+@server(
+    prefix: /toolgen
+    group: toolgen
+)
+
+service LexaEngineApi {
+    @handler getDependId
+	get /depId  returns (GetDependIdResp)
+}
+
+type GetDependIdResp {
+    Code int `json:"code"`
+    Message string `json:"message"`
+    Data string `json:"data"`
+}
+

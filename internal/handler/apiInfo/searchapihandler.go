@@ -7,7 +7,6 @@ import (
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
 
-	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/rest/httpx"
 )
 
@@ -19,7 +18,6 @@ func SearchApiHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		l := api.NewSearchApiLogic(r.Context(), svcCtx)
 		resp, err := l.SearchApi(&req)
 		if err != nil {
-			logx.Error(err)
 			httpx.ErrorCtx(r.Context(), w, err)
 		} else {
 			httpx.OkJsonCtx(r.Context(), w, resp)

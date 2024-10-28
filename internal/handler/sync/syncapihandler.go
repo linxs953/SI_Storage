@@ -11,7 +11,6 @@ import (
 	"lexa-engine/internal/logic/syncTask"
 	"lexa-engine/internal/svc"
 	"lexa-engine/internal/types"
-
 )
 
 func SyncapiHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -24,7 +23,6 @@ func SyncapiHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		syncRecordLogic := syncTask.NewNewSyncRecordLogic(r.Context(), svcCtx)
 		l := apisync.NewSyncapiLogic(r.Context(), svcCtx)
 		rs, err := syncRecordLogic.FindSyncRecord()
-		logx.Error(rs, err)
 		if err != nil {
 			return
 		}

@@ -35,7 +35,6 @@ func (sc *SceneConfig) Execute(ctx context.Context, executor *ApiExecutor) {
 	sc.collectLog(executor.LogChan, execID, "Scene_Start", "开始执行场景", nil)
 	var sceneRunErr error
 	for _, action := range sc.Actions {
-		logx.Error(action.Request.Domain)
 		if err := action.TriggerAc(ctx); err != nil {
 			logx.Error(err)
 			sceneRunErr = err
