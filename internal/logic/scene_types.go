@@ -42,6 +42,17 @@ type Dependency struct {
 	Output OutputSpec `json:"output"`
 }
 
+type DesireSetting struct {
+	DataSource  []DependInject   `json:"dataSource"`
+	Extra       string           `json:"extra"`
+	DsSpec      []DataSourceSpec `json:"dsSpec"`
+	Output      OutputSpec       `json:"output"`
+	IsMultiDs   bool             `json:"isMultiDs"`
+	Mode        string           `json:"mode"`
+	ReferTarget string           `json:"referTarget"`
+	ReferType   string           `json:"referType"`
+}
+
 type OutputSpec struct {
 	Value interface{} `json:"value"`
 	Type  string      `json:"type"`
@@ -117,10 +128,11 @@ type Api struct {
 
 // Data holds the detailed data for an API expectation.
 type Data struct {
-	Name      string      `json:"name"`
-	Operation string      `json:"operation"`
-	Type      string      `json:"type"`
-	Desire    interface{} `json:"desire"`
+	Name          string        `json:"name"`
+	Operation     string        `json:"operation"`
+	Type          string        `json:"type"`
+	Desire        interface{}   `json:"desire"`
+	DesireSetting DesireSetting `json:"desireSetting"`
 }
 
 // Scene represents a scenario including actions, results, and webhook details.

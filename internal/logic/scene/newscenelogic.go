@@ -126,6 +126,16 @@ func sceneTempGen(apiIDs []int, sceneName, description, author, mongourl string)
 						Operation: "equal",
 						Type:      field.FieldType,
 						Desire:    "",
+						DesireSetting: logic.DesireSetting{
+							DataSource:  []logic.DependInject{},
+							Extra:       "",
+							DsSpec:      []logic.DataSourceSpec{},
+							Output:      logic.OutputSpec{},
+							IsMultiDs:   false,
+							Mode:        "1",
+							ReferTarget: field.FieldPath,
+							ReferType:   field.FieldType,
+						},
 					},
 				})
 			}

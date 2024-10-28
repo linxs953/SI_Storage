@@ -438,15 +438,16 @@ func (runner *ApiExecutor) Run(ctx context.Context, taskId string, rdsClient *re
 	}
 
 	// 创建task记录
-	go runner.ScheduleTask(ctx, taskId, mgoConfig)
+	go runner.ScheduleTask(ctx, taskId, mgoConfig, rdsClient)
 }
 
-func (runner *ApiExecutor) ScheduleTask(ctx context.Context, taskId string, mgoConfig config.MongoConfig) {
+func (runner *ApiExecutor) ScheduleTask(ctx context.Context, taskId string, mgoConfig config.MongoConfig, rdsClient *redis.Redis) {
 	var wg sync.WaitGroup
 	ctx = context.WithValue(ctx, "apirunner", ApiExecutorContext{
-		ExecID:  runner.ExecID,
-		Result:  &runner.Result,
-		LogChan: runner.LogChan,
+		ExecID:    runner.ExecID,
+		Result:    &runner.Result,
+		LogChan:   runner.LogChan,
+		RdsClient: rdsClient,
 	})
 	logx.Info("执行器初始化完成")
 	logx.Infof("开始执行任务 [%s]", runner.ExecID)

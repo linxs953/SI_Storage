@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	// "github.com/zeromicro/go-zero/core/logx"
 	"github.com/google/uuid"
+	"github.com/zeromicro/go-zero/core/stores/redis"
 )
 
 type StoreAction func(actionKey string, respFields map[string]interface{}) error
@@ -19,6 +19,7 @@ type FetchDepend func(key string) map[string]interface{}
 
 type ApiExecutor struct {
 	Client         http.Client
+	RDSClient      *redis.Redis
 	Conf           ExecutorConf
 	ExecID         string              `json:"execId"`
 	Cases          []*SceneConfig      `json:"cases"`
@@ -71,11 +72,27 @@ type ActionExpect struct {
 }
 
 type ApiExpect struct {
-	Type      string      `json:"type"`
-	FieldName string      `json:"fieldName"`
-	Operation string      `json:"operation"`
-	DataType  string      `json:"dataType"`
-	Desire    interface{} `json:"desire"`
+	Type      string        `json:"type"`
+	FieldName string        `json:"fieldName"`
+	Operation string        `json:"operation"`
+	DataType  string        `json:"dataType"`
+	Desire    DesireSetting `json:"desire"`
+}
+
+type DesireSetting struct {
+	DataSource  []DependInject   `json:"dataSource"`
+	Extra       string           `json:"extra"`
+	DsSpec      []DataSourceSpec `json:"dsSpec"`
+	Output      OutputSpec       `json:"output"`
+	IsMultiDs   bool             `json:"isMultiDs"`
+	Mode        string           `json:"mode"`
+	ReferTarget string           `json:"referTarget"`
+	ReferType   string           `json:"referType"`
+}
+
+type OutputSpec struct {
+	Value interface{} `json:"value"`
+	Type  string      `json:"type"`
 }
 
 type SQLExpect struct {
@@ -165,10 +182,11 @@ type Refer struct {
 }
 
 type ApiExecutorContext struct {
-	ExecID   string          `json:"execId"`
-	Result   *sync.Map       `json:"result"`
-	LogChan  chan RunFlowLog `json:"logChan"`
-	WriteLog WriteLogFunc    `json:"writeLog"`
+	RdsClient *redis.Redis    `json:"rdsClient"`
+	ExecID    string          `json:"execId"`
+	Result    *sync.Map       `json:"result"`
+	LogChan   chan RunFlowLog `json:"logChan"`
+	WriteLog  WriteLogFunc    `json:"writeLog"`
 }
 
 type RunFlowLog struct {

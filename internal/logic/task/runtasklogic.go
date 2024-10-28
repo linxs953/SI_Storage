@@ -276,6 +276,7 @@ func (l *RunTaskLogic) RunTask(req *types.RunTaskDto) (resp *types.RunTaskResp, 
 		return nil, err
 	}
 
+	exector.RDSClient = l.svcCtx.RedisClient
 	exector.Run(context.Background(), req.TaskId, l.svcCtx.RedisClient, l.svcCtx.Config.Database.Mongo)
 
 	return &types.RunTaskResp{
@@ -455,9 +456,49 @@ func (l *RunTaskLogic) buildApiExecutorWithTaskId(taskId string) (*apirunner.Api
 			// 构建Action Expect
 			apiExpects := make([]apirunner.ApiExpect, 0)
 			for _, expect := range action.Expect.Api {
+
+				// DesireSetting.DataSource转换
+				dependInject := make([]apirunner.DependInject, 0)
+				for _, di := range expect.Data.DesireSetting.DataSource {
+
+					// DataSource.SearchCondArr转换
+					searchCondArr := make([]apirunner.SearchCond, 0)
+					for _, sc := range di.SearchCondArr {
+						searchCondArr = append(searchCondArr, apirunner.SearchCond{
+							CondFiled:     sc.CondFiled,
+							CondValue:     sc.CondValue,
+							CondOperation: sc.CondOperation,
+						})
+					}
+					dependInject = append(dependInject, apirunner.DependInject{
+						DependId:      di.DependId,
+						Type:          di.Type,
+						DataKey:       di.DataKey,
+						ActionKey:     di.ActionKey,
+						SearchCondArr: searchCondArr,
+					})
+				}
+
+				// DesireSetting.DsSpec转换
+				dsSpec := make([]apirunner.DataSourceSpec, 0)
+				for _, dss := range expect.Data.DesireSetting.DsSpec {
+					dsSpec = append(dsSpec, apirunner.DataSourceSpec(dss))
+				}
+
+				output := apirunner.OutputSpec(expect.Data.DesireSetting.Output)
+
 				apiExpects = append(apiExpects, apirunner.ApiExpect{
-					DataType:  expect.Data.Type,
-					Desire:    expect.Data.Desire,
+					DataType: expect.Data.Type,
+					Desire: apirunner.DesireSetting{
+						DataSource:  dependInject,
+						Extra:       expect.Data.DesireSetting.Extra,
+						DsSpec:      dsSpec,
+						Output:      output,
+						IsMultiDs:   expect.Data.DesireSetting.IsMultiDs,
+						Mode:        expect.Data.DesireSetting.Mode,
+						ReferTarget: expect.Data.DesireSetting.ReferTarget,
+						ReferType:   expect.Data.DesireSetting.ReferType,
+					},
 					FieldName: expect.Data.Name,
 					Operation: expect.Data.Operation,
 					Type:      expect.Type,

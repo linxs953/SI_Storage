@@ -14,6 +14,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/stores/redis"
 )
 
 const (
@@ -118,6 +119,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Start", false, fmt.Sprintf("开始执行Action: %s", ac.ActionID), nil, initialResponse)
 
+	// 验证Action
 	if err = ac.validate(); err != nil {
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Validate", true, err.Error(), err, initialResponse)
 		return err
@@ -129,6 +131,7 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 		ac.Request.Headers = make(map[string]string)
 	}
 
+	// 处理Action依赖
 	for _, depend := range ac.Request.Dependency {
 		if err = ac.handleActionDepend(fetchDependency, aec.ExecID, depend); err != nil {
 			ac.collectLog(aec.LogChan, aec.ExecID, "Action_Process_Depend", true, err.Error(), err, initialResponse)
@@ -137,12 +140,13 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	}
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Paramination_Success", false, "Action参数化成功", nil, initialResponse)
 
+	// 执行Action前置hook
 	if err := ac.beforeAction(); err != nil {
-
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Before_Hook", true, err.Error(), err, initialResponse)
 		return err
 	}
 
+	// 执行Action请求
 	logx.Error("开始发送请求")
 	resp, err := ac.sendRequest(ctx)
 	if err != nil {
@@ -153,11 +157,11 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_SendRequest_Success", false, "Action 请求发送成功", nil, initialResponse)
 
+	// 读取Action响应
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, resp.Body)
 
 	if err != nil {
-
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_ReadResponse", true, err.Error(), err, initialResponse)
 		return err
 	}
@@ -171,29 +175,30 @@ func (ac *Action) TriggerAc(ctx context.Context) error {
 	bodyStr := buf.String()
 	logx.Infof("执行完成 %v", bodyStr)
 
+	// 转换Action响应
 	result := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(bodyStr), &result); err != nil {
-
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Transform_Response", true, err.Error(), err, bodyMap)
 		return err
 	}
 
+	// 执行Action后置hook
 	if err := ac.afterAction(); err != nil {
-
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_After_Hook", true, err.Error(), err, bodyMap)
 		return err
 	}
 
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_After_Success", false, "Action 后置hook 执行成功", nil, bodyMap)
 
-	if err := ac.expectAction(bodyMap); err != nil {
-
+	// 断言Action响应
+	if err := ac.expectAction(bodyMap, fetchDependency, aec.ExecID, aec.RdsClient); err != nil {
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Expect", true, err.Error(), errors.Unwrap(err), bodyMap)
 		return err
 	}
 
 	ac.collectLog(aec.LogChan, aec.ExecID, "Action_Expect_Success", false, "Action 断言成功", nil, bodyMap)
 
+	// 存储Action运行结果
 	if err = storeResultToExecutor(fmt.Sprintf("%s.%s", ac.SceneID, ac.ActionID), result); err != nil {
 
 		ac.collectLog(aec.LogChan, aec.ExecID, "Action_Ouput_Store", true, err.Error(), err, bodyMap)
@@ -378,6 +383,66 @@ func (ac *Action) serializeData(data interface{}) (string, error) {
 	}
 }
 
+func (ac *Action) fetchDataWithRedis(rdsClient *redis.Redis, resultType, key string, dataKey string) (string, error) {
+	_ = resultType
+	if key == "" {
+		// 键名为空，直接返回
+		return "", errors.New("redis key为空")
+	}
+
+	if dataKey == "" {
+		// 说明不是数组，直接按字符串获取
+		value, err := rdsClient.GetCtx(context.Background(), key)
+		return value, err
+	}
+
+	var value interface{}
+
+	dataKeyParts := strings.Split(dataKey, ".")
+
+	// 判断第一个元素是否是数字
+	if i, err := strconv.Atoi(dataKeyParts[0]); err == nil {
+		// 是数字，说明是数组，直接取数组中的值
+		value, err = rdsClient.Lindex(key, int64(i))
+		if err != nil {
+			return "", err
+		}
+	} else {
+		value, err = rdsClient.Get(key)
+	}
+
+	// 尝试转换value成map[string]string
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(value.(string)), &data); err != nil {
+		return "", err
+	}
+
+	// 遍历dataParts，从data中获取对应的值
+	for idx, key := range dataKeyParts {
+		if idx == 0 {
+			continue
+		}
+		if _, ok := data[key]; !ok {
+			return "", errors.New("数据不存在")
+		}
+		newDataMap := make(map[string]interface{})
+		if idx < len(dataKeyParts)-1 {
+			// 需要继续提取，需要继续构造map
+			if err := json.Unmarshal([]byte(data[key].(string)), &newDataMap); err != nil {
+				return "", err
+			}
+			data = newDataMap
+			continue
+		}
+		// 能运行到这里，表明是最后一个key
+		value = data[key]
+	}
+
+	logx.Errorf("%s,%s, %v", key, dataKey, value)
+
+	return value.(string), nil
+}
+
 func (ac *Action) fetchDataFromScene(fetch FetchDepend, dataKey string, key string) (interface{}, error) {
 	actionResp := fetch(key)
 	v, err := extractFromResp(actionResp, dataKey)
@@ -462,7 +527,7 @@ func (ac *Action) injectDepend(depend ActionDepend) error {
 }
 
 // 断言整个action
-func (ac *Action) expectResp(respFields map[string]interface{}) error {
+func (ac *Action) expectResp(respFields map[string]interface{}, fetch FetchDepend, execId string, rdsClient *redis.Redis) error {
 	getFiledValue := func(resp map[string]interface{}, key string) (interface{}, error) {
 		if !strings.Contains(key, ".") {
 			return resp[key], nil
@@ -492,12 +557,91 @@ func (ac *Action) expectResp(respFields map[string]interface{}) error {
 				return errors.Wrap(err, fmt.Sprintf("获取响应字段 [%s] 异常", ae.FieldName))
 			}
 
-			assertOk, err := assert(v, ae.Desire, ae.DataType, ae.Operation)
+			// 这里通过数据源获取desire,再传给assert断言
+			var desireValue interface{}
+			if ae.Desire.IsMultiDs && ae.Desire.Extra != "" {
+				desireValue = ae.Desire.Extra
+				dataSourceMap := make(map[string]DependInject)
+				for _, ds := range ae.Desire.DataSource {
+					dataSourceMap[ds.DependId] = ds
+				}
+				for _, dsSpec := range ae.Desire.DsSpec {
+					var dsVal interface{}
+					dataSource, ok := dataSourceMap[dsSpec.DependId]
+					if !ok {
+						return fmt.Errorf("数据源 [%s] 不存在", dsSpec.DependId)
+					}
+
+					if dataSource.Type == "1" {
+						dsVal, err = ac.fetchDataFromScene(fetch, dataSource.DataKey, fmt.Sprintf("%s.%s", execId, dataSource.ActionKey))
+						if err != nil {
+							logx.Errorf("获取数据源 [%s] 失败: %v", fmt.Sprintf("%s.%s", execId, dataSource.ActionKey), err)
+							return err
+						}
+					}
+
+					if dataSource.Type == "2" {
+						dsVal, err = ac.fetchDataWithRedis(rdsClient, "list", dataSource.ActionKey, dataSource.DataKey)
+						if err != nil {
+							logx.Errorf("获取数据源 [%s] 失败: %v", fmt.Sprintf("%s.%s", execId, dataSource.ActionKey), err)
+							return err
+						}
+					}
+					if dataSource.Type == "3" {
+						dsVal = dataSource.DataKey
+					}
+					if dataSource.Type == "4" {
+						dsVal = dataSource.DataKey
+					}
+
+					desireValue = strings.Replace(desireValue.(string), fmt.Sprintf("$$%s", dsSpec.FieldName), dsVal.(string), -1)
+				}
+			} else {
+				if len(ae.Desire.DataSource) > 0 {
+					dataSource := ae.Desire.DataSource[0]
+					var err error
+					if dataSource.Type == "1" {
+						desireValue, err = ac.fetchDataFromScene(fetch, dataSource.DataKey, fmt.Sprintf("%s.%s", execId, dataSource.ActionKey))
+						if err != nil {
+							logx.Errorf("获取数据源 [%s] 失败: %v", fmt.Sprintf("%s.%s", execId, dataSource.ActionKey), err)
+							return err
+						}
+					}
+					if dataSource.Type == "2" {
+						desireValue, err = ac.fetchDataWithRedis(rdsClient, "list", dataSource.ActionKey, dataSource.DataKey)
+						if err != nil {
+							logx.Errorf("获取数据源 [%s] 失败: %v", fmt.Sprintf("%s.%s", execId, dataSource.ActionKey), err)
+							return err
+						}
+					}
+					if dataSource.Type == "3" {
+						desireValue = dataSource.DataKey
+					}
+					if dataSource.Type == "4" {
+						desireValue = dataSource.DataKey
+					}
+				} else {
+					desireValue = ""
+				}
+
+			}
+			if ae.DataType != ae.Desire.Output.Type &&
+				!(ae.DataType == "integer" && (ae.Desire.Output.Type == "number" ||
+					ae.Desire.Output.Type == "int" ||
+					ae.Desire.Output.Type == "int32" ||
+					ae.Desire.Output.Type == "int64" ||
+					ae.Desire.Output.Type == "float" ||
+					ae.Desire.Output.Type == "float32" ||
+					ae.Desire.Output.Type == "float64")) {
+				// 数据源输出的数据类型和字段比较类型不一致
+				return errors.Wrap(fmt.Errorf("预期结果和实际结果类型不一致, 预期结果类型: %s, 实际结果类型: %s", ae.Desire.Output.Type, ae.DataType), "断言失败")
+			}
+			assertOk, err := assert(v, desireValue, ae.DataType, ae.Operation)
 			if err != nil {
-				return errors.Wrap(err, fmt.Sprintf("断言 [%s] %s [%s] 发生错误", ae.FieldName, ae.Operation, ae.Desire))
+				return errors.Wrap(err, fmt.Sprintf("断言 [%s] %s [%s] 发生错误", ae.FieldName, ae.Operation, desireValue))
 			}
 			if !assertOk {
-				rootErr := fmt.Errorf("断言 [%s] %s [%s] 失败", ae.FieldName, ae.Operation, ae.Desire)
+				rootErr := fmt.Errorf("断言 [%s] %s [%s] 失败", ae.FieldName, ae.Operation, desireValue)
 				return errors.Wrap(rootErr, "断言失败")
 			}
 		}
@@ -649,8 +793,8 @@ func getMapFields(data map[string]interface{}, parentKey string, fields map[stri
 	return fields
 }
 
-func (ac *Action) expectAction(respFields map[string]interface{}) error {
-	if err := ac.expectResp(respFields); err != nil {
+func (ac *Action) expectAction(respFields map[string]interface{}, fetch FetchDepend, execId string, rdsClient *redis.Redis) error {
+	if err := ac.expectResp(respFields, fetch, execId, rdsClient); err != nil {
 		return err
 	}
 	return nil
@@ -684,8 +828,3 @@ func ConvertToType[T any](data interface{}) (T, error) {
 
 	return result, nil
 }
-
-// 使用示例：
-// stringValue, err := ConvertToType[string](someInterface)
-// intValue, err := ConvertToType[int](someInterface)
-// floatValue, err := ConvertToType[float64](someInterface)
