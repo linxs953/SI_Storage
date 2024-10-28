@@ -59,12 +59,17 @@ func (l *GetTaskListLogic) GetTaskList(req *types.GetTaskListDto) (resp *types.G
 		resp.Message = "序列化任务列表失败"
 		return
 	}
+
 	var taskListMap []map[string]interface{}
 	err = json.Unmarshal(taskBts, &taskListMap)
 	if err != nil {
 		resp.Code = 2
 		resp.Message = "映射任务列表失败"
 		return
+	}
+	for idx, _ := range taskListMap {
+		taskListMap[idx]["createAt"] = taskList[idx].CreateAt.Format("2006-01-02 15:04:05")
+		taskListMap[idx]["updateAt"] = taskList[idx].UpdateAt.Format("2006-01-02 15:04:05")
 	}
 	resp.Data = taskListMap
 	resp.CurrentPage = req.PageNum
