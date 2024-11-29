@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package Storage;
+option go_package="Storage/storage";
+
+// Task 表示一个待办事项
+message Task {
+  string id = 1;           // 任务唯一标识符
+  string title = 2;        // 任务标题
+  string description = 3;  // 任务描述
+  enum Status {
+    PENDING = 0;    // 待处理
+    IN_PROGRESS = 1;// 进行中
+    COMPLETED = 2;  // 已完成
+  }
+  Status status = 4;       // 任务状态
+  int64 created_at = 5;    // 创建时间（Unix时间戳）
+  int64 updated_at = 6;    // 更新时间（Unix时间戳）
+  string created_by = 7;   // 创建者
+}
+
+// 创建任务请求
+message CreateTaskRequest {
+  string title = 1;        // 任务标题
+  string description = 2;  // 任务描述
+  string created_by = 3;   // 创建者
+}
+
+// 创建任务响应
+message CreateTaskResponse {
+  OperationResponse response = 1;  // 操作响应
+  string task_id = 2;             // 生成的任务ID
+}
+
+// 删除任务请求
+message DeleteTaskRequest {
+  string task_id = 1;
+}
+
+// 通用操作响应
+message OperationResponse {
+  int32 code = 1;          // 操作码
+  bool success = 2;        // 操作是否成功
+  string message = 3;      // 错误信息（如果有）
+}
+
+// 查看任务请求
+message ViewTaskRequest {
+  string task_id = 1;
+}
+
+// 任务列表响应
+message TaskList {
+  repeated Task tasks = 1;
+  int32 total = 2;        // 总任务数
+}
+
+// 更新任务请求
+message UpdateTaskRequest {
+  string task_id = 1;      // 任务ID
+  optional string title = 2;        // 要更新的标题
+  optional string description = 3;  // 要更新的描述
+  optional Task.Status status = 4;  // 要更新的状态
+}
+
+// 批量删除任务请求
+message BatchDeleteTasksRequest {
+  repeated string task_ids = 1;  // 要删除的任务ID列表
+  bool force = 2;               // 是否强制删除
+}
+
+// 空请求消息
+message Empty {}
+
+service Storage {
+  // 添加新任务
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse) {}
+  
+  // 删除任务
+  rpc DeleteTask(DeleteTaskRequest) returns (OperationResponse) {}
+  
+  // 更新任务
+  rpc UpdateTask(UpdateTaskRequest) returns (OperationResponse) {}
+  
+  // 查看单个任务详情
+  rpc ViewTask(ViewTaskRequest) returns (Task) {}
+  
+  // 列出所有任务
+  rpc ListTasks(Empty) returns (TaskList) {}
+  
+  // 批量删除任务
+  rpc BatchDeleteTasks(BatchDeleteTasksRequest) returns (OperationResponse) {}
+}
+  
