@@ -1,0 +1,528 @@
+syntax = "proto3";
+
+package storage;
+option go_package = "./storage";
+
+// 自定义 Struct 和 Timestamp 类型
+message Struct {
+  map<string, Value> fields = 1;
+}
+
+message Value {
+  oneof kind {
+    NullValue null_value = 1;
+    double number_value = 2;
+    string string_value = 3;
+    bool bool_value = 4;
+    ListValue list_value = 5;
+    Struct struct_value = 6;
+  }
+}
+
+message ListValue {
+  repeated Value values = 1;
+}
+
+enum NullValue {
+  NULL_VALUE = 0;
+}
+
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+
+// 基础类型定义
+message Empty {}
+
+// 状态码枚举
+enum StatusCode {
+  SUCCESS = 0;
+  BAD_REQUEST = 400;
+  UNAUTHORIZED = 401;
+  FORBIDDEN = 403;
+  NOT_FOUND = 404;
+  INTERNAL_ERROR = 500;
+  SERVICE_UNAVAILABLE = 503;
+}
+
+// 统一响应头
+message ResponseHeader {
+  int64 code = 1;
+  string message = 2;
+}
+
+// 枚举类型
+enum TaskType {
+  TASK_TYPE_UNSPECIFIED = 0;
+  TASK_TYPE_MANUAL = 1;
+  TASK_TYPE_AUTO = 2;
+  TASK_TYPE_SCHEDULED = 3;
+}
+
+enum TaskStatus {
+  TASK_STATUS_DISABLED = 0;
+  TASK_STATUS_ENABLED = 1;
+}
+
+// 业务实体定义
+message Task {
+  TaskMeta meta = 1;
+  oneof spec {
+    TaskAPISpec api_spec = 2;
+    TaskSyncSpec sync_spec = 3;
+  }
+  int64 type = 4;
+  int64 version = 5;
+  bool enable = 6;
+  string create_at = 7;
+  string update_at = 8;
+}
+
+// 任务的基础配置
+message TaskMeta {
+  string task_id = 1;
+  string task_name = 2;
+  string task_desc = 3;
+}
+
+// api任务的 Spec
+message TaskAPISpec {
+  repeated Scenarios scenarios = 1;
+  Strategy strategy = 2;
+}
+
+// sync任务的 Spec
+message TaskSyncSpec {
+  string sync_type = 1; // 同步任务类型，11-apidoc/apifox，12-apidoc/swagger 2-db，3-other
+  repeated SyncSource source = 2; // 数据源
+  repeated SyncDestination destination =3; // 目标存储
+  Strategy strategy = 4; // 任务执行策略，定时/重试/超时
+}
+
+message SyncSource {
+  ApifoxConfig apifox = 1;
+}
+
+message SyncDestination {
+  string dest_type = 1; // 存储介质类型，mongodb, mysql, redis, kafka,file
+  MongoConfig mongoConfig = 2;
+  string Mode = 3; // 同步模式，1-全量，2-增量
+}
+
+message ApifoxConfig {
+  string base = 1;
+  string projectId = 2;
+  string shareLink = 3;
+  string username = 4;
+  string password = 5;
+}
+
+message MongoConfig {
+  string host = 1;
+  string port = 2;
+  string username = 3;
+  string password = 4;
+  repeated string dbname = 5;  // 写入跨库多表中
+  repeated string collection = 6; // 写入到同库不同的表中
+}
+
+// 基础策略
+message Strategy {
+  bool auto = 1; 
+  string cron_expression = 2; 
+  int32 retry_count = 3; 
+  int32 retry_interval = 4; 
+  int32 priority = 5; 
+  int32 timeout = 6; 
+}
+
+message TestData {
+  string data_id = 1;
+  string content = 2;
+  map<string, string> metadata = 3;
+}
+
+message TestReport {
+  string id = 1;
+  string task_id = 2;
+  string summary = 3;
+  string detailed_results = 4;
+  bool is_success = 5;
+  Timestamp generate_time = 6;
+}
+
+message SceneConfig {
+  string scene_id = 1;
+  string name = 2;
+  string desc = 3;
+  RetrySetting retry = 4;
+  TimeoutSetting timeout = 5;
+  repeated RelatedApi related_api = 6;
+  string create_at = 7;
+  string update_at = 8;
+}
+
+// 接口同步实体
+message InterfaceInfo {
+  string api_id = 1;
+  string name = 2;
+  string method = 3;
+  string path = 4;
+  string description = 5;
+  repeated Header headers = 6;
+  repeated Parameter parameters = 7;
+  string rawData = 8;
+  string projectId = 9;
+  string taskId = 10;
+  string createAt = 11;
+  string updateAt = 12;
+}
+
+message Header {
+  string name = 1;
+  string value = 2;
+}
+
+message Parameter {
+  string name = 1;
+  string value = 2;
+}
+
+message Scenarios {
+  string scid = 1;
+  string scname = 2;
+}
+
+// 请求/响应消息定义
+// 任务相关
+message CreateTaskRequest {
+  string name = 1;
+  TaskType type = 2;
+  oneof spec {
+    TaskAPISpec api_spec = 3;
+    TaskSyncSpec sync_spec = 4;
+  }
+  string desc = 5;
+}
+
+message GetTaskRequest {
+  string task_id = 1;
+}
+
+message UpdateTaskRequest {
+  string task_id = 1;
+  string name = 2;
+  string desc = 3;
+  oneof spec {
+    TaskAPISpec api_spec = 4;
+    TaskSyncSpec sync_spec = 5;
+  }
+}
+
+message DeleteTaskRequest {
+  string task_id = 1;
+}
+
+// 测试数据相关
+message GetTestDataRequest {
+  string data_id = 1;
+}
+
+message UpdateTestDataRequest {
+  string data_id = 1;
+  string content = 2;
+  map<string, string> metadata = 3;
+}
+
+message DeleteTestDataRequest {
+  string data_id = 1;
+}
+
+// 场景配置相关
+message GetSceneConfigRequest {
+  string scene_id = 1;
+}
+
+message UpdateSceneConfigRequest {
+  string scene_id = 1;
+  string name = 2;
+  string desc = 3;
+  RetrySetting retry = 4;
+  TimeoutSetting timeout = 5;
+  repeated RelatedApi related_api = 6;
+  string update_at = 7;
+}
+
+message DeleteSceneConfigRequest {
+  string scene_id = 1;
+}
+
+message ListSceneConfigsRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+// 接口同步相关
+message GetInterfaceListResponse {
+  ResponseHeader header = 1;
+  repeated InterfaceInfo interfaces = 2;
+}
+
+message GetInterfaceRequest {
+  string interface_id = 1;
+}
+
+message GetInterfaceResponse {
+  ResponseHeader header = 1;
+  InterfaceInfo detail = 2;
+}
+
+message DeleteInterfaceRequest {
+  string interface_id = 1;
+}
+
+message SyncInterfaceRequest {
+  string interface_id = 1;
+  map<string, string> sync_config = 2;
+}
+
+message SyncInterfaceResponse {
+  ResponseHeader header = 1;
+  int32 synced_records = 2;
+  Timestamp sync_time = 3;
+}
+
+// 响应消息
+message TaskResponse {
+  ResponseHeader header = 1;
+  TaskMeta meta = 2;
+  oneof spec {
+    TaskAPISpec api_spec = 3;
+    TaskSyncSpec sync_spec = 4;
+  }
+  int64 type = 5;
+  string create_at = 6;
+  string update_at = 7;
+}
+
+message TaskListResponse {
+  ResponseHeader header = 1;
+  message TaskItem {
+    TaskMeta meta = 1;
+    oneof spec {
+      TaskAPISpec api_spec = 2;
+      TaskSyncSpec sync_spec = 3;
+    }
+    int64 type = 4;
+    string create_at = 5;
+    string update_at = 6;
+  }
+  repeated TaskItem data = 2;
+  int32 total = 3;
+}
+
+message DeleteResponse {
+  ResponseHeader header = 1;
+  int64 affected_rows = 2;
+}
+
+message ExecuteTaskRequest {
+  string task_id = 1;
+}
+
+message ExecuteTaskResponse {
+  ResponseHeader header = 1;
+  string execution_id = 2;
+  Timestamp start_time = 3;
+}
+
+message GetTestReportRequest {
+  string report_id = 1;
+}
+
+message TestReportResponse {
+  ResponseHeader header = 1;
+  TestReport report = 2;
+}
+
+message GetTaskReportListRequest {
+  string task_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message ReportListResponse {
+  ResponseHeader header = 1;
+  repeated TestReport data = 2;
+  int32 total = 3;
+}
+
+message CreateTestDataRequest {
+  string content = 1;
+  map<string, string> metadata = 2;
+}
+
+message TestDataResponse {
+  ResponseHeader header = 1;
+  TestData data = 2;
+}
+
+message TestDataListResponse {
+  ResponseHeader header = 1;
+  repeated TestData data = 2;
+  int32 total = 3;
+}
+
+message CreateSceneConfigRequest {
+  string name = 1;
+  string desc = 2;
+  RetrySetting retry = 3;
+  TimeoutSetting timeout = 4;
+  repeated RelatedApi related_api = 5;
+  string create_at = 6;
+  string update_at = 7;
+}
+
+message RelatedApi {
+  string api_id = 1;
+  string name = 2;
+  bool enabled = 3;
+  string dependency = 4;
+  string expect = 5;
+  string extractor = 6;
+}
+
+message TimeoutSetting {
+  int64 duration = 1;
+  bool enabled = 2;
+}
+
+message RetrySetting {
+  int64 max_retry = 1;
+  int64 interval = 2;
+  bool enabled = 3;
+}
+
+message SceneConfigResponse {
+  ResponseHeader header = 1;
+  SceneConfig data = 2;
+}
+
+message SceneConfigListResponse {
+  ResponseHeader header = 1;
+  repeated SceneConfig data = 2;
+  int32 total = 3;
+}
+
+
+message GenerateDependencyRequest {
+  string api_id = 1;
+}
+
+message GenerateDependencyResponse {
+  ResponseHeader header = 1;
+  Dependency dependency = 2;
+}
+
+message GenerateExtractorRequest {
+  string api_id = 1;
+}
+
+message GenerateExtractorResponse {
+  ResponseHeader header = 1;
+  Extractor extractor = 2;
+}
+
+message GenerateExpectRequest {
+  string api_id = 1;
+}
+
+message GenerateExpectResponse {
+  ResponseHeader header = 1;
+  Expect expect = 2;
+}
+
+message Dependency {
+  string api_id = 1;
+  string depend_id = 2;
+  string depend_type = 3;
+  string related_scene = 4;
+  string related_api = 5;
+  string db_config = 6;
+}
+
+message Expect {
+  string api_id = 1;
+  string json_path =2;
+  string operation = 3;
+  Dependency value = 4;
+}
+
+message Extractor {
+  string api_id = 1;
+  repeated extractConfig extractors =2;
+  
+}
+
+message extractConfig {
+  string json_path =1;
+  string name = 2;
+}
+
+service TaskConfigService {
+  // 任务管理
+  rpc CreateTask(CreateTaskRequest) returns (TaskResponse);
+  rpc GetTask(GetTaskRequest) returns (TaskResponse);
+  rpc UpdateTask(UpdateTaskRequest) returns (TaskResponse);
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteResponse);
+  rpc ListTasks(Empty) returns (TaskListResponse);
+}
+
+service ReportService {
+  // 测试报告
+  rpc GetReport(GetTestReportRequest) returns (TestReportResponse);
+  rpc ListReports(GetTaskReportListRequest) returns (ReportListResponse);
+  rpc DeleteReport(GetTestReportRequest) returns (DeleteResponse);
+}
+
+
+service TestDataService {
+  // 测试数据
+  rpc CreateTestData(CreateTestDataRequest) returns (TestDataResponse);
+  rpc GetTestData(GetTestDataRequest) returns (TestDataResponse);
+  rpc UpdateTestData(UpdateTestDataRequest) returns (TestDataResponse);
+  rpc DeleteTestData(DeleteTestDataRequest) returns (DeleteResponse);
+  rpc ListTestData(Empty) returns (TestDataListResponse);
+}
+
+service SceneConfigService {
+  // 场景配置
+  rpc CreateSceneConfig(CreateSceneConfigRequest) returns (SceneConfigResponse);
+  rpc GetSceneConfig(GetSceneConfigRequest) returns (SceneConfigResponse);
+  rpc UpdateSceneConfig(UpdateSceneConfigRequest) returns (SceneConfigResponse);
+  rpc DeleteSceneConfig(DeleteSceneConfigRequest) returns (DeleteResponse);
+  rpc ListSceneConfigs(ListSceneConfigsRequest) returns (SceneConfigListResponse);
+}
+
+// 服务定义
+service ExecuteService {
+  // 任务执行
+  rpc ExecuteTask(ExecuteTaskRequest) returns (ExecuteTaskResponse);
+  
+}
+
+service InterfaceService {
+  // 接口同步
+  rpc GetInterfaceList(Empty) returns (GetInterfaceListResponse);
+  rpc GetInterfaceDetail(GetInterfaceRequest) returns (GetInterfaceResponse);
+  rpc DeleteInterface(DeleteInterfaceRequest) returns (DeleteResponse);
+  rpc SyncInterface(SyncInterfaceRequest) returns (SyncInterfaceResponse);
+
+}
+service GenerateService {
+  // 根据ApiInfo生成依赖、提取器、预期
+  rpc GenerateDependency(GenerateDependencyRequest) returns (GenerateDependencyResponse);
+  rpc GenerateExtractor(GenerateExtractorRequest) returns (GenerateExtractorResponse);
+  rpc GenerateExpect(GenerateExpectRequest) returns (GenerateExpectResponse);
+}
